@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "ecomm_mobile",
-    "slug": "ecomm_mobile",
+    "name": "Safqa",
+    "slug": "safqa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F58634"
     },
     "ios": {
       "supportsTablet": true
@@ -20,10 +20,17 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.anonymous.safqa"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "79f4c554-db7d-4392-8e12-8c1dd3d77c14"
+      }
+    },
+    "owner": "abdelrahmanyasser"
   }
 }
