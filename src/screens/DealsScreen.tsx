@@ -15,96 +15,93 @@ import { COLORS, SIZES, FONTS, SHADOWS } from '../constants/theme';
 import SearchBar from '../components/SearchBar';
 import BannerCarousel from '../components/BannerCarousel';
 import CategoryIcon from '../components/CategoryIcon';
+import { bannersApi, productsApi } from '../services/api';
+import { useSettingsStore } from '../store/settingsStore';
+import { t } from '../constants/i18n';
 
-const DEALS_BANNERS = [
-  { id: 1, image: 'https://picsum.photos/id/119/600/250', backgroundColor: '#7B1FA2' },
-  { id: 2, image: 'https://picsum.photos/id/244/600/250', backgroundColor: '#F58634' },
-];
+const BG_COLORS = ['#F5F0EB', '#FCE4EC', '#E8F5E9', '#E3F2FD', '#FFF3E0'];
+const LABEL_COLORS = ['#2E7D32', '#C2185B', '#2E7D32', '#1565C0', '#EF6C00'];
 
-const DEAL_CATEGORIES = [
-  { id: 1, name: 'Coupon\nSavings', image: 'https://picsum.photos/id/60/120/120' },
-  { id: 2, name: 'Home &\nKitchen', image: 'https://picsum.photos/id/225/120/120' },
-  { id: 3, name: 'Beauty', image: 'https://picsum.photos/id/152/120/120' },
-  { id: 4, name: "Women's\nFashion", image: 'https://picsum.photos/id/177/120/120' },
-  { id: 5, name: 'Mobiles', image: 'https://picsum.photos/id/160/120/120' },
-];
+const API_STORAGE_URL = 'http://10.0.2.2:8000/storage/';
 
-const DEAL_CATEGORIES_2 = [
-  { id: 6, name: 'Supermarket', image: 'https://picsum.photos/id/292/120/120' },
-  { id: 7, name: 'Appliances', image: 'https://picsum.photos/id/202/120/120' },
-  { id: 8, name: "Men's\nFashion", image: 'https://picsum.photos/id/64/120/120' },
-  { id: 9, name: "Kids'\nFashion", image: 'https://picsum.photos/id/198/120/120' },
-  { id: 10, name: 'Electronics', image: 'https://picsum.photos/id/201/120/120' },
-];
-
-const MEGA_DEALS = [
-  {
-    id: 1,
-    title: 'Fashion deals',
-    image: 'https://cdn.dummyjson.com/products/images/tops/Blue%20Women\'s%20Handbag/1.png',
-    bgColor: '#F5F0EB',
-    labelColor: '#2E7D32',
-    discount: 'Up to 80% off',
-  },
-  {
-    id: 2,
-    title: 'Health deals',
-    image: 'https://cdn.dummyjson.com/products/images/sports-accessories/Cricket%20Helmet/1.png',
-    bgColor: '#E8174E',
-    labelColor: '#5C35A8',
-    discount: 'Up to 10% off',
-  },
-  {
-    id: 3,
-    title: 'Home deals',
-    image: 'https://cdn.dummyjson.com/products/images/furniture/Knoll%20Saarinen%20Executive%20Conference%20Chair/1.png',
-    bgColor: '#E0F2F1',
-    labelColor: '#00695C',
-    discount: 'Up to 20% off',
-  },
-  {
-    id: 4,
-    title: 'TVs deals',
-    image: 'https://cdn.dummyjson.com/products/images/laptops/Apple%20MacBook%20Pro%2014%20Inch%20Space%20Grey/1.png',
-    bgColor: '#0D1B2A',
-    labelColor: '#1A237E',
-    discount: 'Up to 40% off',
-  },
-];
-
-// Map deal category names to CategoriesScreen category IDs
-const DEAL_CAT_MAP: Record<string, number> = {
-  'Coupon\nSavings': 1,
-  'Home &\nKitchen': 8,
-  'Beauty': 3,
-  "Women's\nFashion": 5,
-  'Mobiles': 7,
-  'Supermarket': 10,
-  'Appliances': 2,
-  "Men's\nFashion": 4,
-  "Kids'\nFashion": 6,
-  'Electronics': 1,
-};
-
-const MEGA_DEAL_MAP: Record<string, number> = {
-  'Fashion deals': 5,
-  'Health deals': 3,
-  'Home deals': 8,
-  'TVs deals': 1,
-};
+const mapApiBanner = (b: any) => ({
+  id: b.id,
+  image: b.image_url || b.image || (b.image_path ? `${API_STORAGE_URL}${b.image_path}` : null),
+  backgroundColor: '#1B5E20',
+  title: b.title_en || b.title,
+  link: b.link_url || b.link,
+});
 
 const DealsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const [expressEnabled, setExpressEnabled] = useState(false);
+  const { language } = useSettingsStore();
+  const tr = t(language);
+  const isAr = language === 'ar';
+
+  const [banners, setBanners] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [bannersRes, catsRes, dealsRes] = await Promise.allSettled([
+          bannersApi.list(),
+          productsApi.categories(),
+          productsApi.list({ page: 1 })
+        ]);
+
+        if (bannersRes.status === 'fulfilled') {
+          const data = bannersRes.value.data?.data || bannersRes.value.data || [];
+          const mapped = Array.isArray(data) ? data.map(mapApiBanner).filter((b: any) => !!b.image) : [];
+          setBanners(mapped);
+        }
+
+        if (catsRes.status === 'fulfilled') {
+          const data = catsRes.value.data?.data || catsRes.value.data || [];
+          if (Array.isArray(data) && data.length > 0) {
+            setCategories(data.slice(0, 10).map((c: any) => ({
+              id: c.id,
+              name: c.name_en || c.name || 'Category',
+              nameAr: c.name_ar || c.name_en || c.name || 'فئة',
+              image: c.image_url || c.image || 'https://picsum.photos/id/1/120/120',
+            })));
+          }
+        }
+
+        if (dealsRes.status === 'fulfilled') {
+          const raw = dealsRes.value.data;
+          const items = raw?.data?.data || raw?.data || [];
+          if (Array.isArray(items)) {
+            setDeals(items.slice(0, 8).map((p: any, i: number) => ({
+              id: p.id,
+              title: (p.name_en || p.name || 'Deal').split(' ').slice(0, 2).join(' '),
+              titleAr: (p.name_ar || p.name_en || p.name || 'عرض').split(' ').slice(0, 2).join(' '),
+              image: p.primary_image?.url || p.images?.[0]?.url || 'https://picsum.photos/id/1/200/200',
+              bgColor: BG_COLORS[i % BG_COLORS.length],
+              labelColor: LABEL_COLORS[i % LABEL_COLORS.length],
+              discount: p.discount_percentage
+                ? (isAr ? `خصم ${p.discount_percentage}%` : `Up to ${p.discount_percentage}% off`)
+                : (isAr ? 'عرض خاص' : 'Special Offer'),
+            })));
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [language]); // refetch when language changes
 
   const handleCategoryPress = (cat: any) => {
-    const categoryId = DEAL_CAT_MAP[cat.name] || 1;
-    navigation.navigate('Categories', { categoryId });
+    navigation.navigate('Categories', { categoryId: cat.id });
   };
 
   const handleMegaDealPress = (deal: any) => {
-    const categoryId = MEGA_DEAL_MAP[deal.title] || 1;
-    navigation.navigate('Categories', { categoryId });
+    // Navigate to categories since deals doesn't have a direct product mapping in this simplified mock
+    navigation.navigate('Categories', { categoryId: undefined });
   };
 
   return (
@@ -119,7 +116,7 @@ const DealsScreen: React.FC = () => {
       </View>
 
       <View style={styles.searchWrap}>
-        <SearchBar placeholder="Search" />
+        <SearchBar placeholder={isAr ? 'بحث...' : 'Search'} />
       </View>
 
       {/* Filter Row */}
@@ -132,19 +129,19 @@ const DealsScreen: React.FC = () => {
             {expressEnabled && <Ionicons name="checkmark" size={12} color={COLORS.white} />}
           </View>
           <Text style={[styles.expressText, expressEnabled && styles.expressTextActive]}>
-            express
+            {isAr ? 'إكسبريس' : 'express'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.filterButton}>
           <Ionicons name="settings-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.filterButtonText}>Deals</Text>
+          <Text style={styles.filterButtonText}>{isAr ? 'عروض' : 'Deals'}</Text>
           <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.filterButton}>
           <MaterialCommunityIcons name="tag-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.filterButtonText}>Brand</Text>
+          <Text style={styles.filterButtonText}>{isAr ? 'الماركة' : 'Brand'}</Text>
           <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -154,47 +151,49 @@ const DealsScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Banner */}
-        <BannerCarousel banners={DEALS_BANNERS} height={180} />
+        {banners.length > 0 && <BannerCarousel banners={banners} height={180} />}
 
-        {/* Categories - 2 rows, scroll together */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScroll}
-        >
-          <View style={styles.categoriesColumn}>
-            {/* Row 1 */}
-            <View style={styles.categoriesRow}>
-              {DEAL_CATEGORIES.map((cat) => (
-                <CategoryIcon
-                  key={cat.id}
-                  name={cat.name}
-                  image={cat.image}
-                  isDome
-                  onPress={() => handleCategoryPress(cat)}
-                />
-              ))}
+        {/* Categories - up to 2 rows */}
+        {categories.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryScroll}
+          >
+            <View style={styles.categoriesColumn}>
+              <View style={styles.categoriesRow}>
+                {categories.slice(0, 5).map((cat) => (
+                  <CategoryIcon
+                    key={cat.id}
+                    name={isAr ? (cat.nameAr || cat.name) : cat.name}
+                    image={cat.image}
+                    isDome
+                    onPress={() => handleCategoryPress(cat)}
+                  />
+                ))}
+              </View>
+              {categories.length > 5 && (
+                <View style={styles.categoriesRow}>
+                  {categories.slice(5, 10).map((cat) => (
+                    <CategoryIcon
+                      key={cat.id}
+                      name={isAr ? (cat.nameAr || cat.name) : cat.name}
+                      image={cat.image}
+                      onPress={() => handleCategoryPress(cat)}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
-            {/* Row 2 */}
-            <View style={styles.categoriesRow}>
-              {DEAL_CATEGORIES_2.map((cat) => (
-                <CategoryIcon
-                  key={cat.id}
-                  name={cat.name}
-                  image={cat.image}
-                  onPress={() => handleCategoryPress(cat)}
-                />
-              ))}
-            </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        )}
 
         {/* ── Mega Deals Section ── */}
         <View style={styles.megaDealsContainer}>
           <View style={styles.megaDealsHeader}>
             <Text style={styles.megaDealsStars}>✦  ✦  ✦</Text>
-            <Text style={styles.megaDealsTitle}>Mega Deals</Text>
-            <Text style={styles.megaDealsSubtitle}>Limited time offers</Text>
+            <Text style={styles.megaDealsTitle}>{isAr ? 'عروض مميزة' : 'Mega Deals'}</Text>
+            <Text style={styles.megaDealsSubtitle}>{isAr ? 'عروض لفترة محدودة' : 'Limited time offers'}</Text>
           </View>
 
           <View style={styles.megaDealsBody}>
@@ -203,7 +202,7 @@ const DealsScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.megaDealsScroll}
             >
-              {MEGA_DEALS.map((deal) => (
+              {deals.map((deal) => (
                 <TouchableOpacity key={deal.id} activeOpacity={0.9} style={styles.megaDealCardOuter} onPress={() => handleMegaDealPress(deal)}>
                   <View style={styles.megaDealCard}>
                     <View style={[styles.megaDealImageArea, { backgroundColor: deal.bgColor }]}>

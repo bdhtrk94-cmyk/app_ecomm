@@ -2,10 +2,13 @@ import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS } from '../constants/theme';
+import { useWishlistStore } from '../store/wishlistStore';
+import { useSettingsStore } from '../store/settingsStore';
 
 interface ProductCardProps {
   id: number;
   name: string;
+  nameAr?: string;
   image: string;
   price: number;
   originalPrice?: number;
@@ -23,7 +26,9 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({
+  id,
   name,
+  nameAr,
   image,
   price,
   originalPrice,
@@ -38,6 +43,13 @@ const ProductCard: React.FC<ProductCardProps> = ({
   onFavorite,
   onAddToCart,
 }) => {
+  const { isInWishlist, toggleWishlist } = useWishlistStore();
+  const { language } = useSettingsStore();
+  const isAr = language === 'ar';
+  const isFav = isInWishlist(id);
+
+  const displayName = isAr ? (nameAr || name) : name;
+
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.container}>
       {/* Image Section */}
@@ -50,16 +62,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         {/* Discount Tag */}
-        {discount && (
+        {(discount || 0) > 0 && (
           <View style={styles.discountTag}>
             <Text style={styles.discountTagText}>{discount}%</Text>
-            <Text style={styles.discountTagOff}>OFF</Text>
+            <Text style={styles.discountTagOff}>{isAr ? 'خصم' : 'OFF'}</Text>
           </View>
         )}
 
         {/* Favorite Button */}
-        <TouchableOpacity style={styles.favoriteBtn} onPress={onFavorite}>
-          <Ionicons name="heart-outline" size={18} color="#999" />
+        <TouchableOpacity style={styles.favoriteBtn} onPress={() => toggleWishlist(id)}>
+          <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={18} color={isFav ? '#E53935' : '#999'} />
         </TouchableOpacity>
 
         {/* Product Image */}
@@ -78,28 +90,28 @@ const ProductCard: React.FC<ProductCardProps> = ({
       {/* Info Section */}
       <View style={styles.infoSection}>
         {/* Product Name */}
-        <Text style={styles.name} numberOfLines={2}>{name}</Text>
+        <Text style={[styles.name, { textAlign: isAr ? 'right' : 'left' }]} numberOfLines={2}>{displayName}</Text>
 
         {/* Rating */}
-        {rating && (
-          <View style={styles.ratingRow}>
+        {(rating || 0) > 0 && (
+          <View style={[styles.ratingRow, { justifyContent: isAr ? 'flex-end' : 'flex-start' }]}>
             <Ionicons name="star" size={11} color="#FFB800" />
-            <Text style={styles.ratingValue}> {rating}</Text>
-            {ratingCount && (
-              <Text style={styles.ratingCount}> ({ratingCount})</Text>
+            <Text style={styles.ratingValue}>{rating}</Text>
+            {(ratingCount || 0) > 0 && (
+              <Text style={styles.ratingCount}>({ratingCount})</Text>
             )}
           </View>
         )}
 
         {/* Price */}
-        <Text style={styles.priceText}>
+        <View style={[styles.priceRow, { flexDirection: 'row', justifyContent: isAr ? 'flex-end' : 'flex-start' }]}>
           <Text style={styles.currency}>EGP </Text>
           <Text style={styles.price}>{price.toLocaleString()}</Text>
-        </Text>
+        </View>
 
         {/* Original Price */}
         {originalPrice && (
-          <Text style={styles.originalPrice}>
+          <Text style={[styles.originalPrice, { textAlign: isAr ? 'right' : 'left' }]}>
             EGP {originalPrice.toLocaleString()}
           </Text>
         )}
@@ -123,15 +135,16 @@ const styles = StyleSheet.create({
     height: 140,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FFF',
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     overflow: 'hidden',
     position: 'relative',
+    padding: 10,
   },
   image: {
-    width: 100,
-    height: 100,
+    width: '100%',
+    height: '100%',
   },
   bestSellerTag: {
     position: 'absolute',
@@ -213,6 +226,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 5,
+    gap: 4,
   },
   ratingValue: {
     fontSize: 11,
@@ -223,8 +237,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#999',
   },
-  priceText: {
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     marginBottom: 2,
+    gap: 2,
   },
   currency: {
     fontSize: 10,

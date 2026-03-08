@@ -7,6 +7,9 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS } from './src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthStore } from './src/store/authStore';
+import { useSettingsStore } from './src/store/settingsStore';
 
 import HomeScreen from './src/screens/HomeScreen';
 import CategoriesScreen from './src/screens/CategoriesScreen';
@@ -14,11 +17,27 @@ import DealsScreen from './src/screens/DealsScreen';
 import AccountScreen from './src/screens/AccountScreen';
 import CartScreen from './src/screens/CartScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import OrdersScreen from './src/screens/OrdersScreen';
+import AddressesScreen from './src/screens/AddressesScreen';
+import WishlistScreen from './src/screens/WishlistScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 import { useCartStore } from './src/store/cartStore';
 
 const PERSISTENCE_KEY = 'SAFQA_NAV_STATE';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const AuthStack = createNativeStackNavigator();
+
+function AuthNavigator() {
+  return (
+    <AuthStack.Navigator id="AuthStack" screenOptions={{ headerShown: false }}>
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Register" component={RegisterScreen} />
+    </AuthStack.Navigator>
+  );
+}
 
 function TabBarIcon({ name, focused, color, size = 22 }: { name: string; focused: boolean; color: string; size?: number }) {
   return <Ionicons name={name as any} size={size} color={color} />;
@@ -26,6 +45,19 @@ function TabBarIcon({ name, focused, color, size = 22 }: { name: string; focused
 
 function TabNavigator() {
   const itemCount = useCartStore((state) => state.getItemCount());
+  const insets = useSafeAreaInsets();
+  const { language } = useSettingsStore();
+  const isAr = language === 'ar';
+
+  const tabLabels = {
+    Home: isAr ? 'الرئيسية' : 'Home',
+    Categories: isAr ? 'الفئات' : 'Categories',
+    Deals: isAr ? 'العروض' : 'Deals',
+    Account: isAr ? 'حسابي' : 'Account',
+    Cart: isAr ? 'السلة' : 'Cart',
+  };
+
+  const bottomInset = insets.bottom;
 
   return (
     <Tab.Navigator
@@ -33,9 +65,9 @@ function TabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 88 : 110,
+          height: 56 + (bottomInset > 0 ? bottomInset : 16),
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 45,
+          paddingBottom: bottomInset > 0 ? bottomInset : 16,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#EEEEEE',
@@ -54,6 +86,7 @@ function TabNavigator() {
         name="Home"
         component={HomeScreen}
         options={{
+          tabBarLabel: tabLabels.Home,
           tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
             <Ionicons
               name={focused ? 'home' : 'home-outline'}
@@ -67,6 +100,7 @@ function TabNavigator() {
         name="Categories"
         component={CategoriesScreen}
         options={{
+          tabBarLabel: tabLabels.Categories,
           tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
             <MaterialCommunityIcons
               name={focused ? 'view-grid' : 'view-grid-outline'}
@@ -80,6 +114,7 @@ function TabNavigator() {
         name="Deals"
         component={DealsScreen}
         options={{
+          tabBarLabel: tabLabels.Deals,
           tabBarIcon: ({ focused }: { focused: boolean }) => (
             <MaterialCommunityIcons
               name="gift"
@@ -94,6 +129,7 @@ function TabNavigator() {
         name="Account"
         component={AccountScreen}
         options={{
+          tabBarLabel: tabLabels.Account,
           tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
             <Ionicons
               name={focused ? 'person' : 'person-outline'}
@@ -107,6 +143,7 @@ function TabNavigator() {
         name="Cart"
         component={CartScreen}
         options={{
+          tabBarLabel: tabLabels.Cart,
           tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
             <View>
               <MaterialCommunityIcons
@@ -130,24 +167,22 @@ function TabNavigator() {
 export default function App() {
   const [isReady, setIsReady] = useState(!__DEV__);
   const [initialState, setInitialState] = useState<any>();
+  const { isLoggedIn, rehydrate } = useAuthStore();
+  const { language } = useSettingsStore();
 
   useEffect(() => {
-    const restoreState = async () => {
+    const init = async () => {
+      // Restore navigation state
       try {
         const savedState = await AsyncStorage.getItem(PERSISTENCE_KEY);
-        if (savedState) {
-          setInitialState(JSON.parse(savedState));
-        }
-      } catch (e) {
-        // ignore
-      } finally {
-        setIsReady(true);
-      }
-    };
+        if (savedState) setInitialState(JSON.parse(savedState));
+      } catch (_) { }
 
-    if (!isReady) {
-      restoreState();
-    }
+      // Restore auth token
+      await rehydrate();
+      setIsReady(true);
+    };
+    if (!isReady) init();
   }, [isReady]);
 
   const onStateChange = useCallback((state: any) => {
@@ -156,17 +191,43 @@ export default function App() {
 
   if (!isReady) return null;
 
+  const isAr = language === 'ar';
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer initialState={initialState} onStateChange={onStateChange}>
-        <Stack.Navigator id="RootStack" screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Tabs" component={TabNavigator} />
-          <Stack.Screen
-            name="ProductDetail"
-            component={ProductDetailScreen}
-            options={{ animation: 'slide_from_right' }}
-          />
-        </Stack.Navigator>
+      <NavigationContainer initialState={isLoggedIn ? initialState : undefined} onStateChange={onStateChange}>
+        {isLoggedIn ? (
+          <Stack.Navigator id="RootStack" screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Tabs" component={TabNavigator} />
+            <Stack.Screen
+              name="ProductDetail"
+              component={ProductDetailScreen}
+              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="Orders"
+              component={OrdersScreen}
+              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="Addresses"
+              component={AddressesScreen}
+              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="Wishlist"
+              component={WishlistScreen}
+              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+            />
+          </Stack.Navigator>
+        ) : (
+          <AuthNavigator />
+        )}
       </NavigationContainer>
     </SafeAreaProvider>
   );

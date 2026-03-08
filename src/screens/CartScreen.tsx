@@ -8,31 +8,56 @@ import {
   Image,
   StatusBar,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS } from '../constants/theme';
 import { useCartStore, CartItem } from '../store/cartStore';
-import { useNavigation } from '@react-navigation/native';
-
-const BESTSELLER_PRODUCTS = [
-  { id: 1, name: 'Samsung Galaxy S24 Ultra 512GB...', image: 'https://cdn.dummyjson.com/products/images/smartphones/Samsung%20Galaxy%20S24/1.png', price: 54999, originalPrice: 64999 },
-  { id: 2, name: 'Apple MacBook Pro 14" M3 Pro...', image: 'https://cdn.dummyjson.com/products/images/laptops/Apple%20MacBook%20Pro%2014%20Inch%20Space%20Grey/1.png', price: 89999, originalPrice: 99999 },
-  { id: 3, name: 'Essence Mascara Lash Princess...', image: 'https://cdn.dummyjson.com/products/images/beauty/Essence%20Mascara%20Lash%20Princess/1.png', price: 299, originalPrice: 450 },
-  { id: 4, name: 'ASUS Zenbook Pro Dual Screen...', image: 'https://cdn.dummyjson.com/products/images/laptops/Asus%20Zenbook%20Pro%20Dual%20Screen%20Laptop/1.png', price: 95555, originalPrice: 105000 },
-];
-
-const SUGGESTED_PRODUCTS = [
-  { id: 1, name: 'Stainless Steel Cleaning Bucket Set...', image: 'https://cdn.dummyjson.com/products/images/kitchen-accessories/Cleaning%20Spray/1.png', price: 899 },
-  { id: 2, name: 'Microfiber Flat Floor Mop Set...', image: 'https://cdn.dummyjson.com/products/images/kitchen-accessories/Wooden%20Rolling%20Pin/1.png', price: 549 },
-];
+import { useAuthStore } from '../store/authStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { checkoutApi } from '../services/api';
+import { t } from '../constants/i18n';
 
 const CartScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { items, getTotal, getSavings, getItemCount, updateQuantity, removeItem } = useCartStore();
+  const { items, getTotal, getSavings, getItemCount, updateQuantity, removeItem, fetchCart, clearCart } = useCartStore();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const { language } = useSettingsStore();
+  const tr = t(language);
+  const isAr = language === 'ar';
+  const [isCheckingOut, setIsCheckingOut] = React.useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Only fetch cart when user is authenticated
+      if (isLoggedIn) fetchCart();
+    }, [isLoggedIn])
+  );
 
   const total = getTotal();
   const savings = getSavings();
   const itemCount = getItemCount();
+
+  const handleCheckout = async () => {
+    if (items.length === 0) return;
+    setIsCheckingOut(true);
+    try {
+      // Pass a dummy address ID for now
+      await checkoutApi.checkout({ address_id: 1 });
+      await clearCart();
+      Alert.alert('Success!', 'Your order has been placed successfully.', [
+        { text: 'OK', onPress: () => navigation.navigate('Home') }
+      ]);
+    } catch (err: any) {
+      console.warn('Checkout error:', err?.response?.data || err);
+      const msg = err?.response?.data?.message || 'Failed to place order';
+      Alert.alert('Checkout Failed', msg);
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   // ── Empty Cart State ──
   if (items.length === 0) {
@@ -55,66 +80,18 @@ const CartScreen: React.FC = () => {
               <View style={styles.sparkle2}><Text style={{ fontSize: 12 }}>⭐</Text></View>
               <View style={styles.sparkle3}><Text style={{ fontSize: 14 }}>✦</Text></View>
             </View>
-            <Text style={styles.emptyTitle}>Your shopping cart{'\n'}looks empty.</Text>
-            <Text style={styles.emptySubtitle}>What are you waiting for?</Text>
+            <Text style={styles.emptyTitle}>{tr('cartEmpty')}</Text>
+            <Text style={styles.emptySubtitle}>{tr('cartEmptySub')}</Text>
             <TouchableOpacity
               style={styles.startShoppingBtn}
               activeOpacity={0.85}
               onPress={() => navigation.navigate('Home')}
             >
-              <Text style={styles.startShoppingText}>Start Shopping</Text>
+              <Text style={styles.startShoppingText}>{tr('startShopping')}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Bestsellers Section */}
-          <View style={styles.bestsellersSection}>
-            <Text style={styles.bestsellersTitle}>Bestsellers for you</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.bestsellersScroll}
-            >
-              {BESTSELLER_PRODUCTS.map((prod) => (
-                <TouchableOpacity
-                  key={prod.id}
-                  style={styles.bestsellerCard}
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate('ProductDetail', {
-                    product: {
-                      ...prod,
-                      brand: prod.name.split(' ')[0],
-                      images: [prod.image],
-                      rating: 4.5,
-                      reviews: 100,
-                      stock: 10,
-                      description: prod.name,
-                      specs: ['Premium Quality'],
-                      freeDelivery: true,
-                      isExpress: true,
-                      deliveryDate: '9 March',
-                    }
-                  })}
-                >
-                  {/* Best Seller Tag */}
-                  <View style={styles.bestsellerTag}>
-                    <Text style={styles.bestsellerTagText}>Best Seller</Text>
-                  </View>
-                  {/* Heart */}
-                  <TouchableOpacity style={styles.bestsellerHeart}>
-                    <Ionicons name="heart-outline" size={16} color="#999" />
-                  </TouchableOpacity>
-                  {/* Image */}
-                  <Image source={{ uri: prod.image }} style={styles.bestsellerImage} resizeMode="contain" />
-                  {/* Add button */}
-                  <TouchableOpacity style={styles.bestsellerAddBtn}>
-                    <Ionicons name="add" size={18} color="#333" />
-                  </TouchableOpacity>
-                  {/* Name */}
-                  <Text style={styles.bestsellerName} numberOfLines={1}>{prod.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+
         </ScrollView>
       </View>
     );
@@ -144,7 +121,7 @@ const CartScreen: React.FC = () => {
             <View key={`${item.productId}-${item.id}`} style={styles.cartItemCard}>
               {item.isExpress && (
                 <View style={styles.expressBanner}>
-                  <Text style={styles.expressLabel}>express</Text>
+                  <Text style={styles.expressLabel}>{isAr ? 'إكسبريس' : 'express'}</Text>
                 </View>
               )}
 
@@ -154,24 +131,23 @@ const CartScreen: React.FC = () => {
                   <View style={styles.storeBadge}>
                     <Text style={styles.storeBadgeText}>{item.storeName}</Text>
                   </View>
-                  <Text style={styles.cartItemName} numberOfLines={2}>{item.name}</Text>
+                  <Text style={[styles.cartItemName, { textAlign: isAr ? 'right' : 'left' }]} numberOfLines={2}>{language === 'ar' ? (item.nameAr || item.name) : item.name}</Text>
 
                   <View style={styles.priceRow}>
-                    <Text style={styles.priceCurrency}>EGP </Text>
                     <Text style={styles.priceValue}>{item.price.toLocaleString()}</Text>
+                    <Text style={styles.priceCurrency}>EGP</Text>
                     {item.originalPrice && (
-                      <>
-                        <Text style={styles.originalPrice}> {item.originalPrice.toLocaleString()}</Text>
-                        <Text style={styles.discountTag}> {discount}% OFF</Text>
-                      </>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={styles.originalPrice}>{item.originalPrice.toLocaleString()}</Text>
+                        <Text style={styles.discountTag}>{discount}% {isAr ? 'خصم' : 'OFF'}</Text>
+                      </View>
                     )}
                   </View>
 
                   {item.deliveryDate && (
                     <View style={styles.deliveryInfo}>
-                      <Text style={styles.deliveryEta}>
-                        Get it by <Text style={FONTS.bold}>{item.deliveryDate}</Text>
-                      </Text>
+                      <Text style={styles.deliveryEtaText}>{tr('getItBy')}</Text>
+                      <Text style={styles.deliveryEtaDate}>{item.deliveryDate}</Text>
                     </View>
                   )}
 
@@ -189,7 +165,7 @@ const CartScreen: React.FC = () => {
 
                   <View style={styles.freeShipRow}>
                     <MaterialCommunityIcons name="truck-fast-outline" size={14} color={COLORS.freeShipping} />
-                    <Text style={styles.freeShipText}>Free Shipping</Text>
+                    <Text style={styles.freeShipText}>{isAr ? 'شحن مجاني' : 'Free Shipping'}</Text>
                   </View>
                 </View>
               </View>
@@ -200,22 +176,10 @@ const CartScreen: React.FC = () => {
         {/* Express Shipping Info */}
         <View style={styles.expressShipInfo}>
           <MaterialCommunityIcons name="truck-fast" size={16} color={COLORS.primary} />
-          <Text style={styles.expressShipText}>Enjoy free Express shipping</Text>
+          <Text style={styles.expressShipText}>{isAr ? 'استمتع بشحن اكسبريس مجاني' : 'Enjoy free Express shipping'}</Text>
         </View>
 
-        {/* Suggestions */}
-        <View style={styles.suggestionsHeader}>
-          <Text style={styles.suggestionsTitle}>Don't miss out on these offers</Text>
-          <Text style={styles.adBadge}>Ad</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsScroll}>
-          {SUGGESTED_PRODUCTS.map((prod) => (
-            <TouchableOpacity key={prod.id} style={styles.suggestionCard}>
-              <Image source={{ uri: prod.image }} style={styles.suggestionImage} resizeMode="contain" />
-              <Text style={styles.suggestionName} numberOfLines={2}>{prod.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -227,16 +191,30 @@ const CartScreen: React.FC = () => {
         </TouchableOpacity>
         <View style={styles.checkoutContent}>
           <View style={styles.checkoutPriceSection}>
-            <Text style={styles.checkoutTotal}>
-              EGP <Text style={styles.checkoutTotalValue}>{total.toLocaleString()}.00</Text>
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+              <Text style={styles.checkoutTotalValue}>{total.toLocaleString()}.00</Text>
+              <Text style={styles.checkoutTotalCurrency}>EGP</Text>
+            </View>
             {savings > 0 && (
-              <Text style={styles.checkoutSavings}>Saving EGP {savings.toFixed(2)}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={styles.checkoutSavings}>{isAr ? 'توفير' : 'Saving'}</Text>
+                <Text style={styles.checkoutSavingsValue}>{savings.toFixed(2)}</Text>
+                <Text style={styles.checkoutSavings}>{isAr ? 'ج.م' : 'EGP'}</Text>
+              </View>
             )}
-            <Text style={styles.itemCountText}>{itemCount} item{itemCount > 1 ? 's' : ''} in cart</Text>
+            <Text style={styles.itemCountText}>{itemCount} {isAr ? 'عنصر في السلة' : `item${itemCount > 1 ? 's' : ''} in cart`}</Text>
           </View>
-          <TouchableOpacity style={styles.checkoutButton}>
-            <Text style={styles.checkoutButtonText}>CHECKOUT</Text>
+          <TouchableOpacity
+            style={[styles.checkoutButton, isCheckingOut && { opacity: 0.7 }]}
+            onPress={handleCheckout}
+            disabled={isCheckingOut}
+            activeOpacity={0.8}
+          >
+            {isCheckingOut ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.checkoutButtonText}>{tr('checkout').toUpperCase()}</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -276,7 +254,7 @@ const styles = StyleSheet.create({
 
   // ── Cart Items ──
   cartItemCard: { backgroundColor: COLORS.white, marginHorizontal: 16, marginTop: 10, borderRadius: SIZES.radiusLg, overflow: 'hidden', ...SHADOWS.small },
-  expressBanner: { backgroundColor: COLORS.primary, paddingHorizontal: 14, paddingVertical: 6 },
+  expressBanner: { backgroundColor: COLORS.primary, paddingHorizontal: 14, paddingVertical: 6, alignSelf: 'flex-start' },
   expressLabel: { color: COLORS.white, fontSize: SIZES.fontSm, ...FONTS.bold, fontStyle: 'italic' },
   cartItemContent: { flexDirection: 'row', padding: 12 },
   cartItemImage: { width: 90, height: 90, borderRadius: SIZES.radiusMd, backgroundColor: COLORS.background, marginRight: 12 },
@@ -284,13 +262,14 @@ const styles = StyleSheet.create({
   storeBadge: { backgroundColor: COLORS.textPrimary, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: SIZES.radiusSm, marginBottom: 4 },
   storeBadgeText: { color: COLORS.white, fontSize: 10, ...FONTS.medium },
   cartItemName: { fontSize: SIZES.fontSm, color: COLORS.textPrimary, ...FONTS.regular, lineHeight: 18, marginBottom: 6 },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 4 },
   priceCurrency: { fontSize: SIZES.fontXs, color: COLORS.textPrimary, ...FONTS.medium },
   priceValue: { fontSize: SIZES.fontLg, color: COLORS.textPrimary, ...FONTS.bold },
   originalPrice: { fontSize: SIZES.fontXs, color: COLORS.textMuted, textDecorationLine: 'line-through' },
   discountTag: { fontSize: SIZES.fontXs, color: COLORS.discount, ...FONTS.semiBold },
-  deliveryInfo: { marginTop: 6 },
-  deliveryEta: { fontSize: SIZES.fontXs, color: COLORS.textPrimary },
+  deliveryInfo: { marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+  deliveryEtaText: { fontSize: SIZES.fontXs, color: COLORS.textPrimary },
+  deliveryEtaDate: { fontSize: SIZES.fontXs, color: COLORS.textPrimary, ...FONTS.bold },
   quantityRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: COLORS.border, borderRadius: SIZES.radiusMd, overflow: 'hidden' },
   quantityBtn: { paddingHorizontal: 10, paddingVertical: 6 },
   quantityDisplay: { paddingHorizontal: 14, paddingVertical: 6, borderLeftWidth: 1, borderRightWidth: 1, borderColor: COLORS.border },
@@ -311,17 +290,18 @@ const styles = StyleSheet.create({
   suggestionImage: { width: '100%', height: 90, borderRadius: 8, marginBottom: 8, backgroundColor: '#FAFAFA' },
   suggestionName: { fontSize: SIZES.fontXs, color: COLORS.textPrimary, lineHeight: 14 },
 
-  // Checkout Bar
-  checkoutBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingBottom: 26, ...SHADOWS.large },
-  collapseRow: { alignItems: 'center', paddingTop: 4 },
-  checkoutContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 },
+  // Sticky Checkout Bar
+  checkoutBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 34 : 20, paddingTop: 12, borderTopWidth: 1, borderColor: COLORS.border, ...SHADOWS.medium },
+  collapseRow: { alignItems: 'center', marginBottom: 8 },
+  checkoutContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   checkoutPriceSection: { flex: 1 },
-  checkoutTotal: { fontSize: SIZES.fontSm, color: COLORS.textPrimary, ...FONTS.medium },
-  checkoutTotalValue: { fontSize: SIZES.fontXl, ...FONTS.bold },
-  checkoutSavings: { fontSize: SIZES.fontXs, color: COLORS.freeShipping, ...FONTS.medium, marginTop: 2 },
-  itemCountText: { fontSize: 11, color: '#999', marginTop: 2 },
-  checkoutButton: { backgroundColor: COLORS.secondary, borderRadius: SIZES.radiusMd, paddingHorizontal: 30, paddingVertical: 10 },
-  checkoutButtonText: { color: COLORS.white, fontSize: SIZES.fontMd, ...FONTS.bold, letterSpacing: 1 },
+  checkoutTotalCurrency: { fontSize: SIZES.fontMd, color: COLORS.textPrimary, ...FONTS.bold },
+  checkoutTotalValue: { fontSize: SIZES.fontXxl, ...FONTS.bold, color: COLORS.textPrimary },
+  checkoutSavings: { fontSize: SIZES.fontSm, color: COLORS.discount, ...FONTS.medium },
+  checkoutSavingsValue: { fontSize: SIZES.fontSm, color: COLORS.discount, ...FONTS.bold },
+  itemCountText: { fontSize: SIZES.fontXs, color: COLORS.textMuted, marginTop: 2 },
+  checkoutButton: { backgroundColor: COLORS.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: SIZES.radiusLg, ...SHADOWS.small, marginLeft: 16 },
+  checkoutButtonText: { color: COLORS.white, fontSize: SIZES.fontMd, ...FONTS.bold },
 });
 
 export default CartScreen;

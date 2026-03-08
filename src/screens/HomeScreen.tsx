@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
   View,
@@ -12,6 +12,8 @@ import {
   Dimensions,
   Alert,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS } from '../constants/theme';
@@ -21,240 +23,166 @@ import CategoryIcon from '../components/CategoryIcon';
 import SectionHeader from '../components/SectionHeader';
 import ProductCard from '../components/ProductCard';
 import { useCartStore } from '../store/cartStore';
+import { useWishlistStore } from '../store/wishlistStore';
+import { useAuthStore } from '../store/authStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { bannersApi, productsApi } from '../services/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { t } from '../constants/i18n';
 
-// Mock data - using picsum.photos (direct URLs) and fakestoreapi for reliable loading
-const BANNERS = [
-  { id: 1, image: 'https://picsum.photos/id/26/600/250', backgroundColor: '#1B5E20' },
-  { id: 2, image: 'https://picsum.photos/id/3/600/250', backgroundColor: '#F58634' },
-  { id: 3, image: 'https://picsum.photos/id/96/600/250', backgroundColor: '#3866DF' },
-];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const CATEGORIES = [
+// ─────────────────────────────────────────
+// Fallback static categories (from API /categories)
+// ─────────────────────────────────────────
+const FALLBACK_CATEGORIES = [
   { id: 1, name: 'Deals!', image: 'https://picsum.photos/id/1/120/120', isDome: true },
   { id: 2, name: 'Installments\n& Discounts', image: 'https://picsum.photos/id/20/120/120' },
   { id: 3, name: 'Shop & Win', image: 'https://picsum.photos/id/26/120/120' },
   { id: 4, name: "Men's Fashion", image: 'https://picsum.photos/id/64/120/120' },
   { id: 5, name: 'Brand Store', image: 'https://picsum.photos/id/96/120/120' },
   { id: 6, name: 'Coupon\nSavings', image: 'https://picsum.photos/id/60/120/120' },
-  { id: 7, name: 'Ramadan\nEssentials', image: 'https://picsum.photos/id/225/120/120' },
-  { id: 8, name: 'Beauty', image: 'https://picsum.photos/id/152/120/120' },
-  { id: 9, name: "Women's\nFashion", image: 'https://picsum.photos/id/177/120/120' },
-  { id: 10, name: 'Bundles', image: 'https://picsum.photos/id/175/120/120' },
 ];
 
-// Map HomeScreen category names to CategoriesScreen category IDs
-const CATEGORY_ID_MAP: Record<string, number> = {
-  "Men's Fashion": 4,
-  'Beauty': 3,
-  "Women's\nFashion": 5,
-  'Brand Store': 1,
-  'Deals!': 1,
-  'Coupon\nSavings': 1,
-  'Ramadan\nEssentials': 8,
-  'Bundles': 1,
-  'Installments\n& Discounts': 1,
-  'Shop & Win': 1,
-};
+// ─────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────
+const mapApiProduct = (p: any) => ({
+  id: p.id,
+  productId: p.id,
+  name: p.name_en || p.name || 'Product',
+  nameAr: p.name_ar || p.name_en || p.name,
+  // Backend may return primary_image object OR images array
+  image: p.primary_image?.url
+    || p.primaryImage?.url
+    || p.images?.[0]?.url
+    || p.image
+    || 'https://picsum.photos/id/1/200/200',
+  price: parseFloat(p.price) || 0,
+  originalPrice: p.original_price ? parseFloat(p.original_price) : undefined,
+  discount: p.discount_percentage || 0,
+  rating: parseFloat(p.rating || '0'),
+  ratingCount: p.reviews_count || 0,
+  isExpress: p.is_express || false,
+  isFreeShipping: p.is_free_shipping || false,
+  isBestSeller: p.is_best_seller || false,
+  soldCount: p.sold_count ? String(p.sold_count) : undefined,
+  slug: p.slug,
+  storeName: p.seller?.store_name_en || p.store?.name || 'Safqa Store',
+  reviews: p.reviews || [],
+  description: p.description || p.description_en,
+  stock: p.quantity_in_stock,
+  specs: p.specifications ? Object.entries(p.specifications).map(([k, v]) => `${k}: ${v}`) : [],
+  images: p.images?.map((img: any) => img.url || img) || [],
+});
 
-// Map mega deal labels to category IDs
-const MEGA_DEAL_CATEGORY_MAP: Record<string, number> = {
-  'Fashion deals': 5,
-  'Health deals': 3,
-  'Home deals': 8,
-  'TVs deals': 1,
-  'Baby deals': 12,
-  'Stationary deals': 8,
-};
+const API_STORAGE_URL = 'http://10.0.2.2:8000/storage/';
 
-const PRODUCTS = [
-  {
-    id: 1,
-    name: 'Vileda Turbo Smart Spin Microfiber Mop And Bucket Set...',
-    image: 'https://cdn.dummyjson.com/products/images/kitchen-accessories/Cleaning%20Spray/1.png',
-    price: 1099,
-    originalPrice: 1699,
-    discount: 35,
-    rating: 3.1,
-    ratingCount: 119,
-    isExpress: true,
-    isFreeShipping: true,
-    isBestSeller: false,
-    soldCount: undefined,
-  },
-  {
-    id: 2,
-    name: 'Mop Bucket Two Sinks For Rinse And Spin...',
-    image: 'https://cdn.dummyjson.com/products/images/kitchen-accessories/Wooden%20Rolling%20Pin/1.png',
-    price: 315,
-    originalPrice: 450,
-    discount: 30,
-    rating: 3.1,
-    ratingCount: 119,
-    isExpress: true,
-    isFreeShipping: true,
-    isBestSeller: false,
-    soldCount: undefined,
-  },
-  {
-    id: 3,
-    name: 'AIWANTO 2-Tier Dish Drying Storage Rack...',
-    image: 'https://cdn.dummyjson.com/products/images/furniture/Knoll%20Saarinen%20Executive%20Conference%20Chair/1.png',
-    price: 499,
-    originalPrice: 899,
-    discount: 44,
-    rating: 4.3,
-    ratingCount: 217,
-    isExpress: true,
-    isFreeShipping: false,
-    isBestSeller: true,
-    soldCount: '260+',
-  },
-  {
-    id: 4,
-    name: 'Flash Floor Cleaning Mop With Broom...',
-    image: 'https://cdn.dummyjson.com/products/images/sports-accessories/Cricket%20Helmet/1.png',
-    price: 359,
-    originalPrice: 499,
-    discount: 28,
-    rating: 4.5,
-    ratingCount: 89,
-    isExpress: true,
-    isFreeShipping: false,
-    isBestSeller: false,
-    soldCount: undefined,
-  },
-  {
-    id: 5,
-    name: 'Samsung Galaxy S24 Ultra 512GB Titanium...',
-    image: 'https://cdn.dummyjson.com/products/images/smartphones/Samsung%20Galaxy%20S24/1.png',
-    price: 54999,
-    originalPrice: 64999,
-    discount: 15,
-    rating: 4.8,
-    ratingCount: 342,
-    isExpress: true,
-    isFreeShipping: true,
-    isBestSeller: true,
-    soldCount: '500+',
-  },
-  {
-    id: 6,
-    name: 'JBL Charge 5 Portable Bluetooth Speaker...',
-    image: 'https://cdn.dummyjson.com/products/images/mobile-accessories/Apple%20AirPods%20Max%20Silver/1.png',
-    price: 5499,
-    originalPrice: 7999,
-    discount: 31,
-    rating: 4.7,
-    ratingCount: 156,
-    isExpress: false,
-    isFreeShipping: true,
-    isBestSeller: false,
-    soldCount: '120+',
-  },
-];
+const mapApiBanner = (b: any) => ({
+  id: b.id,
+  // image_path is a relative storage path  e.g. "banners/abc.jpg"
+  image: b.image_url
+    || b.image
+    || (b.image_path ? `${API_STORAGE_URL}${b.image_path}` : null),
+  backgroundColor: '#1B5E20',
+  title: b.title_en || b.title,
+  link: b.link_url || b.link,
+});
 
-// Enrich products with detail data for ProductDetailScreen
-const PRODUCTS_DETAIL = PRODUCTS.map(p => ({
-  ...p,
-  brand: p.name.split(' ')[0],
-  images: [p.image],
-  rating: p.rating,
-  reviews: p.ratingCount,
-  stock: 10,
-  description: `High-quality ${p.name}. Premium build with modern design. Satisfaction guaranteed.`,
-  specs: ['Premium Quality', 'Modern Design', 'Best Value'],
-  freeDelivery: p.isFreeShipping,
-  isExpress: p.isExpress,
-  deliveryDate: '9 March',
-  orderIn: '5h 30m',
-}));
-
-const MEGA_DEALS = [
-  {
-    id: 1,
-    label: 'Fashion deals',
-    labelColor: '#2E7D32',
-    bgColor: '#F5F0EB',
-    image: 'https://cdn.dummyjson.com/products/images/tops/Blue%20Women\'s%20Handbag/1.png',
-    discount: 'Up to 80% off',
-  },
-  {
-    id: 2,
-    label: 'Health deals',
-    labelColor: '#5C35A8',
-    bgColor: '#E8174E',
-    image: 'https://cdn.dummyjson.com/products/images/sports-accessories/Cricket%20Helmet/1.png',
-    discount: 'Up to 10% off',
-  },
-  {
-    id: 3,
-    label: 'Home deals',
-    labelColor: '#00695C',
-    bgColor: '#E0F2F1',
-    image: 'https://cdn.dummyjson.com/products/images/furniture/Knoll%20Saarinen%20Executive%20Conference%20Chair/1.png',
-    discount: 'Up to 20% off',
-  },
-  {
-    id: 4,
-    label: 'TVs deals',
-    labelColor: '#1A237E',
-    bgColor: '#0D1B2A',
-    image: 'https://cdn.dummyjson.com/products/images/laptops/Apple%20MacBook%20Pro%2014%20Inch%20Space%20Grey/1.png',
-    discount: 'EGP 17,499',
-    originalPrice: '19999',
-  },
-  {
-    id: 5,
-    label: 'Baby deals',
-    labelColor: '#D81B60',
-    bgColor: '#FCE4EC',
-    image: 'https://cdn.dummyjson.com/products/images/furniture/Annibale%20Colombo%20Sofa/1.png',
-    discount: 'Up to 50% off',
-  },
-  {
-    id: 6,
-    label: 'Stationary deals',
-    labelColor: '#FF6F00',
-    bgColor: '#FFF8E1',
-    image: 'https://cdn.dummyjson.com/products/images/kitchen-accessories/Wooden%20Rolling%20Pin/1.png',
-    discount: 'Up to 60% off',
-  },
-];
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const DEAL_CARD_WIDTH = 140;
-
+// ─────────────────────────────────────────
+// HomeScreen
+// ─────────────────────────────────────────
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
+  const addItem = useCartStore((state) => state.addItem);
+  const { fetchWishlist } = useWishlistStore();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const { language } = useSettingsStore();
+  const tr = t(language);
+  const isAr = language === 'ar';
+
+  const [banners, setBanners] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      // Only fetch wishlist if user is logged in (avoids 401)
+      if (isLoggedIn) fetchWishlist();
+      const [bannersRes, productsRes, categoriesRes] = await Promise.allSettled([
+        bannersApi.list(),
+        productsApi.list({ page: 1 }),
+        productsApi.categories(),
+      ]);
+
+      if (bannersRes.status === 'fulfilled') {
+        const data = bannersRes.value.data?.data || bannersRes.value.data || [];
+        const mapped = Array.isArray(data)
+          ? data.map(mapApiBanner).filter((b: any) => !!b.image)
+          : [];
+        setBanners(mapped);
+      } else {
+        setBanners([]);
+      }
+
+      if (productsRes.status === 'fulfilled') {
+        // Laravel paginate() returns: { success, data: { data: [...], total, current_page } }
+        const raw = productsRes.value.data;
+        const items = raw?.data?.data || raw?.data || [];
+        setProducts(Array.isArray(items) ? items.map(mapApiProduct) : []);
+      }
+
+      if (categoriesRes.status === 'fulfilled') {
+        // Categories uses get() not paginate(): { success, data: [...] }
+        const raw = categoriesRes.value.data;
+        const data = raw?.data || [];
+        if (Array.isArray(data) && data.length > 0) {
+          setCategories(data.slice(0, 8).map((c: any) => ({
+            id: c.id,
+            name: c.name_en || c.name || 'Category',
+            nameAr: c.name_ar || c.name_en || c.name || 'فئة',
+            image: c.image_url || c.image || 'https://picsum.photos/id/1/120/120',
+          })));
+        }
+      }
+    } catch (_) {
+      // silently keep fallback data
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [isLoggedIn, language]); // Refetch when language toggles
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
+  };
 
   const handleCategoryPress = (cat: any) => {
-    const categoryId = CATEGORY_ID_MAP[cat.name] || 1;
-    navigation.navigate('Categories', { categoryId });
+    navigation.navigate('Categories', { categoryId: cat.id });
   };
 
   const handleProductPress = (product: any) => {
     navigation.navigate('ProductDetail', { product });
   };
 
-  const handleMegaDealPress = (deal: any) => {
-    const categoryId = MEGA_DEAL_CATEGORY_MAP[deal.label] || 1;
-    navigation.navigate('Categories', { categoryId });
-  };
-
-  const addItem = useCartStore((state) => state.addItem);
-
   const handleAddToCart = (product: any) => {
     addItem({
       id: product.id,
       productId: product.id,
       name: product.name,
-      nameAr: product.name,
+      nameAr: product.nameAr,
       image: product.image,
       price: product.price,
       originalPrice: product.originalPrice,
-      storeName: 'Safqa Store',
+      storeName: product.storeName,
       isExpress: product.isExpress || false,
-      deliveryDate: 'Sun, Mar 9',
+      deliveryDate: 'Soon',
     });
     Alert.alert('✅ Added to Cart', `${product.name.substring(0, 35)}... added!`, [
       { text: 'OK' },
@@ -264,337 +192,127 @@ const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Header - Brand */}
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerInner}>
-          <Ionicons name="bag-handle" size={22} color="#FFF" />
-          <Text style={styles.brandName}>Safqa</Text>
+        <View style={[styles.headerInner, { paddingTop: Platform.OS === 'android' ? insets.top + 12 : 54 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Ionicons name="bag-handle" size={22} color="#FFF" />
+            <Text style={styles.brandName}>Safqa</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.navigate('Wishlist')}>
+              <Ionicons name="heart-outline" size={24} color="#FFF" />
+            </TouchableOpacity>
+            <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.navigate('Notifications')}>
+              <Ionicons name="notifications-outline" size={24} color="#FFF" />
+              <View style={styles.notificationBadge} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
-        {/* Search Bar */}
-        <SearchBar placeholder="Search Smart Watch" />
-
-        {/* Hero Banner Carousel */}
-        <BannerCarousel banners={BANNERS} height={160} />
-
-        {/* Shop by Category */}
-        <SectionHeader title="Shop by category" showSeeAll onSeeAll={() => {}} />
-
-        {/* Categories - 2 rows, horizontal scroll like Noon */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesScroll}
-        >
-          <View style={styles.categoriesColumn}>
-            {/* Row 1 */}
-            <View style={styles.categoriesRow}>
-              {CATEGORIES.slice(0, 5).map((cat) => (
-                <CategoryIcon
-                  key={cat.id}
-                  name={cat.name}
-                  image={cat.image}
-                  isDome={cat.isDome}
-                  onPress={() => handleCategoryPress(cat)}
-                />
-              ))}
-            </View>
-            {/* Row 2 */}
-            <View style={styles.categoriesRow}>
-              {CATEGORIES.slice(5).map((cat) => (
-                <CategoryIcon
-                  key={cat.id}
-                  name={cat.name}
-                  image={cat.image}
-                  isDome={cat.isDome}
-                  onPress={() => handleCategoryPress(cat)}
-                />
-              ))}
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Recommended for you */}
-        <SectionHeader title="Recommended for you" showSeeAll onSeeAll={() => {}} />
-
-        {/* Product Horizontal Scroll - like Noon */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.productsScroll}
-        >
-          {PRODUCTS.map((product) => (
-            <View key={product.id} style={styles.productCardWrapper}>
-              <ProductCard
-                {...product}
-                onPress={() => handleProductPress(PRODUCTS_DETAIL.find(p => p.id === product.id) || product)}
-                onFavorite={() => {}}
-                onAddToCart={() => handleAddToCart(product)}
-              />
-            </View>
-          ))}
-        </ScrollView>
-
-        {/* ── Mega Deals Section ── */}
-        <View style={styles.megaDealsContainer}>
-          {/* Decorative Header */}
-          <View style={styles.megaDealsHeader}>
-            <Text style={styles.megaDealsStars}>✦  ✦  ✦</Text>
-            <Text style={styles.megaDealsTitle}>Mega Deals</Text>
-            <Text style={styles.megaDealsSubtitle}>Limited time offers</Text>
-          </View>
-
-          {/* Deals Body */}
-          <View style={styles.megaDealsBody}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.megaDealsScroll}
-            >
-              <View style={styles.megaDealsColumn}>
-                {/* Row 1 */}
-                <View style={styles.megaDealsRow}>
-                  {MEGA_DEALS.slice(0, 3).map((deal) => (
-                    <TouchableOpacity key={deal.id} activeOpacity={0.9} style={styles.dealCardOuter} onPress={() => handleMegaDealPress(deal)}>
-                      <View style={styles.dealCard}>
-                        <View style={[styles.dealImageArea, { backgroundColor: deal.bgColor }]}>
-                          <View style={[styles.dealLabel, { backgroundColor: deal.labelColor }]}>
-                            <Text style={styles.dealLabelText}>{deal.label}</Text>
-                          </View>
-                          <Image source={{ uri: deal.image }} style={styles.dealImage} resizeMode="contain" />
-                        </View>
-                        <View style={styles.dealInfoArea}>
-                          <Text style={styles.dealDiscount}>{deal.discount}</Text>
-                          {deal.originalPrice && (
-                            <Text style={styles.dealOriginalPrice}>{deal.originalPrice}</Text>
-                          )}
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {/* Row 2 */}
-                <View style={styles.megaDealsRow}>
-                  {MEGA_DEALS.slice(3).map((deal) => (
-                    <TouchableOpacity key={deal.id} activeOpacity={0.9} style={styles.dealCardOuter} onPress={() => handleMegaDealPress(deal)}>
-                      <View style={styles.dealCard}>
-                        <View style={[styles.dealImageArea, { backgroundColor: deal.bgColor }]}>
-                          <View style={[styles.dealLabel, { backgroundColor: deal.labelColor }]}>
-                            <Text style={styles.dealLabelText}>{deal.label}</Text>
-                          </View>
-                          <Image source={{ uri: deal.image }} style={styles.dealImage} resizeMode="contain" />
-                        </View>
-                        <View style={styles.dealInfoArea}>
-                          <Text style={styles.dealDiscount}>{deal.discount}</Text>
-                          {deal.originalPrice && (
-                            <Text style={styles.dealOriginalPrice}>{deal.originalPrice}</Text>
-                          )}
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </ScrollView>
-          </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>{tr('loading')}</Text>
         </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+        >
+          {/* Search Bar */}
+          <SearchBar placeholder={isAr ? 'ابحث عن ساعة ذكية...' : 'Search Smart Watch'} />
 
-        <View style={{ height: 20 }} />
-      </ScrollView>
+          {/* Banner Carousel */}
+          {banners.length > 0 && <BannerCarousel banners={banners} height={160} />}
+
+          {/* Shop by Category */}
+          <SectionHeader title={isAr ? 'تسوق حسب الفئة' : 'Shop by category'} showSeeAll onSeeAll={() => navigation.navigate('Categories')} />
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.categoriesScroll, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+            <View style={styles.categoriesColumn}>
+              <View style={[styles.categoriesRow, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+                {categories.slice(0, Math.ceil(categories.length / 2)).map((cat) => (
+                  <CategoryIcon key={cat.id} name={isAr ? (cat.nameAr || cat.name) : cat.name} image={cat.image} isDome={cat.isDome} onPress={() => handleCategoryPress(cat)} />
+                ))}
+              </View>
+              <View style={[styles.categoriesRow, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+                {categories.slice(Math.ceil(categories.length / 2)).map((cat) => (
+                  <CategoryIcon key={cat.id} name={isAr ? (cat.nameAr || cat.name) : cat.name} image={cat.image} isDome={cat.isDome} onPress={() => handleCategoryPress(cat)} />
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* Recommended Products */}
+          {products.length > 0 && (
+            <>
+              <SectionHeader title={isAr ? 'مُوصى به لك' : 'Recommended for you'} showSeeAll onSeeAll={() => navigation.navigate('Categories')} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.productsScroll, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+                {products.map((product) => (
+                  <View key={product.id} style={[styles.productCardWrapper, isAr ? { marginLeft: 10 } : { marginRight: 10 }]}>
+                    <ProductCard
+                      {...product}
+                      onPress={() => handleProductPress(product)}
+                      onFavorite={() => { }}
+                      onAddToCart={() => handleAddToCart(product)}
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* No products fallback */}
+          {products.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="cube-outline" size={48} color="#DDD" />
+              <Text style={styles.emptyText}>{isAr ? 'لا توجد منتجات بعد' : 'No products yet'}</Text>
+            </View>
+          )}
+
+          <View style={{ height: 20 }} />
+        </ScrollView>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    backgroundColor: COLORS.primary,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { backgroundColor: COLORS.primary },
   headerInner: {
-    paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight || 0) + 12,
     paddingHorizontal: 16,
     paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  brandName: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#FFF',
-    marginLeft: 8,
-    letterSpacing: 1.5,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  promoStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.primary,
-    marginHorizontal: 16,
-    marginTop: 4,
-    borderRadius: SIZES.radiusMd,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  promoStripInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  promoStripLabel: {
-    color: COLORS.white,
-    fontSize: SIZES.fontSm,
-    ...FONTS.bold,
-    marginRight: 8,
-    backgroundColor: COLORS.primaryDark,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  promoStripText: {
-    color: COLORS.white,
-    fontSize: SIZES.fontSm,
-    ...FONTS.regular,
-  },
-  promoStripTC: {
-    color: COLORS.white,
-    fontSize: SIZES.fontXs,
-    opacity: 0.8,
-  },
-  categoriesScroll: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  categoriesColumn: {
-    flexDirection: 'column',
-  },
-  categoriesRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  productsScroll: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  productCardWrapper: {
-    width: 165,
-    marginRight: 10,
-  },
-  // ── Mega Deals ──
-  megaDealsContainer: {
-    marginTop: 20,
-    marginHorizontal: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  megaDealsHeader: {
-    backgroundColor: COLORS.primary,
-    paddingTop: 16,
-    paddingBottom: 12,
-    alignItems: 'center',
-  },
-  megaDealsStars: {
-    color: '#FFD700',
-    fontSize: 10,
-    letterSpacing: 6,
-    marginBottom: 4,
-  },
-  megaDealsTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: COLORS.white,
-    letterSpacing: 1,
-    fontStyle: 'italic',
-  },
-  megaDealsSubtitle: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  megaDealsBody: {
-    backgroundColor: COLORS.primary,
-    paddingBottom: 12,
-  },
-  megaDealsScroll: {
-    paddingHorizontal: 10,
-    paddingTop: 4,
-  },
-  megaDealsColumn: {
-    flexDirection: 'column',
-  },
-  megaDealsRow: {
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  dealCardOuter: {
-    width: DEAL_CARD_WIDTH,
-    marginRight: 8,
-  },
-  dealCard: {
-    width: '100%',
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#FFF',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  dealImageArea: {
-    width: '100%',
-    height: 135,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  dealLabel: {
+  brandName: { fontSize: 26, fontWeight: '900', color: '#FFF', marginLeft: 8, letterSpacing: 1.5 },
+  scrollView: { flex: 1 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: '#AAA' },
+  categoriesScroll: { paddingHorizontal: 8, paddingVertical: 4 },
+  categoriesColumn: { flexDirection: 'column' },
+  categoriesRow: { flexDirection: 'row', marginBottom: 8 },
+  productsScroll: { paddingHorizontal: 12, paddingVertical: 6 },
+  productCardWrapper: { width: 165, marginRight: 10 },
+  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 12 },
+  emptyText: { fontSize: 15, color: '#AAA' },
+  notificationBadge: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  dealLabelText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  dealImage: {
-    width: 85,
-    height: 85,
-  },
-  dealInfoArea: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    backgroundColor: '#FFF',
-  },
-  dealDiscount: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1A1A1A',
-  },
-  dealOriginalPrice: {
-    fontSize: 11,
-    color: '#AAA',
-    textDecorationLine: 'line-through',
-    marginTop: 2,
+    top: 2,
+    right: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'red',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
   },
 });
 

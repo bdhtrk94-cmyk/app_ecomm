@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS, SIZES, FONTS } from '../constants/theme';
+import { useSettingsStore } from '../store/settingsStore';
 
 interface SectionHeaderProps {
   title: string;
@@ -13,12 +14,15 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
   showSeeAll = false,
   onSeeAll,
 }) => {
+  const { language } = useSettingsStore();
+  const isAr = language === 'ar';
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{title}</Text>
+      <Text style={[styles.title, isAr && { textAlign: 'right' }]}>{title}</Text>
       {showSeeAll && (
         <TouchableOpacity onPress={onSeeAll}>
-          <Text style={styles.seeAll}>SEE ALL</Text>
+          <Text style={styles.seeAll}>{isAr ? 'عرض الكل' : 'SEE ALL'}</Text>
         </TouchableOpacity>
       )}
     </View>
