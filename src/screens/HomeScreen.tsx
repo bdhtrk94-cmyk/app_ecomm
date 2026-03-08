@@ -196,7 +196,7 @@ const HomeScreen: React.FC = () => {
 
       {/* Header */}
       <View style={styles.header}>
-        <View style={[styles.headerInner, { paddingTop: Platform.OS === 'android' ? insets.top + 12 : 54 }]}>
+        <View style={[styles.headerInner, { paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight || 0) + 12 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
             <Ionicons name="bag-handle" size={22} color="#FFF" />
             <Text style={styles.brandName}>Safqa</Text>

@@ -67,7 +67,6 @@ function TabNavigator() {
         tabBarStyle: {
           height: 56 + (bottomInset > 0 ? bottomInset : 16),
           paddingTop: 8,
-          paddingBottom: bottomInset > 0 ? bottomInset : 16,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#EEEEEE',
@@ -195,40 +194,43 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer initialState={isLoggedIn ? initialState : undefined} onStateChange={onStateChange}>
-        {isLoggedIn ? (
-          <Stack.Navigator id="RootStack" screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Tabs" component={TabNavigator} />
-            <Stack.Screen
-              name="ProductDetail"
-              component={ProductDetailScreen}
-              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
-            />
-            <Stack.Screen
-              name="Orders"
-              component={OrdersScreen}
-              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
-            />
-            <Stack.Screen
-              name="Addresses"
-              component={AddressesScreen}
-              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
-            />
-            <Stack.Screen
-              name="Wishlist"
-              component={WishlistScreen}
-              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
-            />
-            <Stack.Screen
-              name="Notifications"
-              component={NotificationsScreen}
-              options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
-            />
-          </Stack.Navigator>
-        ) : (
-          <AuthNavigator />
-        )}
-      </NavigationContainer>
+      {/* Root direction wrapper — flips entire layout for Arabic */}
+      <View style={{ flex: 1, direction: isAr ? 'rtl' : 'ltr' } as any}>
+        <NavigationContainer initialState={isLoggedIn ? initialState : undefined} onStateChange={onStateChange}>
+          {isLoggedIn ? (
+            <Stack.Navigator id="RootStack" screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Tabs" component={TabNavigator} />
+              <Stack.Screen
+                name="ProductDetail"
+                component={ProductDetailScreen}
+                options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="Orders"
+                component={OrdersScreen}
+                options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="Addresses"
+                component={AddressesScreen}
+                options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="Wishlist"
+                component={WishlistScreen}
+                options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="Notifications"
+                component={NotificationsScreen}
+                options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+              />
+            </Stack.Navigator>
+          ) : (
+            <AuthNavigator />
+          )}
+        </NavigationContainer>
+      </View>
     </SafeAreaProvider>
   );
 }

@@ -256,8 +256,8 @@ const styles = StyleSheet.create({
   cartItemCard: { backgroundColor: COLORS.white, marginHorizontal: 16, marginTop: 10, borderRadius: SIZES.radiusLg, overflow: 'hidden', ...SHADOWS.small },
   expressBanner: { backgroundColor: COLORS.primary, paddingHorizontal: 14, paddingVertical: 6, alignSelf: 'flex-start' },
   expressLabel: { color: COLORS.white, fontSize: SIZES.fontSm, ...FONTS.bold, fontStyle: 'italic' },
-  cartItemContent: { flexDirection: 'row', padding: 12 },
-  cartItemImage: { width: 90, height: 90, borderRadius: SIZES.radiusMd, backgroundColor: COLORS.background, marginRight: 12 },
+  cartItemContent: { flexDirection: 'row', padding: 12, gap: 12 },
+  cartItemImage: { width: 90, height: 90, borderRadius: SIZES.radiusMd, backgroundColor: COLORS.background },
   cartItemDetails: { flex: 1 },
   storeBadge: { backgroundColor: COLORS.textPrimary, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: SIZES.radiusSm, marginBottom: 4 },
   storeBadgeText: { color: COLORS.white, fontSize: 10, ...FONTS.medium },
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   suggestionName: { fontSize: SIZES.fontXs, color: COLORS.textPrimary, lineHeight: 14 },
 
   // Sticky Checkout Bar
-  checkoutBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.white, paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 34 : 20, paddingTop: 12, borderTopWidth: 1, borderColor: COLORS.border, ...SHADOWS.medium },
+  checkoutBar: { backgroundColor: COLORS.white, paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 34 : 20, paddingTop: 12, borderTopWidth: 1, borderColor: COLORS.border, ...SHADOWS.medium },
   collapseRow: { alignItems: 'center', marginBottom: 8 },
   checkoutContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   checkoutPriceSection: { flex: 1 },

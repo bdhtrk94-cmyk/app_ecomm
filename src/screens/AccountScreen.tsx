@@ -49,7 +49,7 @@ const AccountScreen: React.FC = () => {
             {user?.email}
           </Text>
 
-          <View style={{ flexDirection: isAr ? 'row-reverse' : 'row', gap: 10, marginTop: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
             <TouchableOpacity
               style={[styles.loginButton, { flex: 1, backgroundColor: COLORS.primary }]}
               onPress={() => navigation.navigate('Orders')}
@@ -69,7 +69,7 @@ const AccountScreen: React.FC = () => {
         </View>
 
         {/* Credit Card Promo */}
-        <View style={[styles.promoCard, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+        <View style={styles.promoCard}>
           <View style={styles.promoLeft}>
             <View style={styles.promoCardBrand}>
               <View style={styles.creditCardIcon}>
@@ -82,10 +82,10 @@ const AccountScreen: React.FC = () => {
             </View>
           </View>
           <View style={styles.promoRight}>
-            <Text style={[styles.promoDiscount, { textAlign: isAr ? 'right' : 'left' }]}>
+            <Text style={[styles.promoDiscount, { textAlign: 'left' }]}>
               {isAr ? 'خصم 5% حتى 150 جنيه' : '5% discount up to EGP\n150 with your CIB safqa\ncredit card'}
             </Text>
-            <TouchableOpacity style={[styles.applyButton, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+            <TouchableOpacity style={styles.applyButton}>
               <Text style={styles.applyText}>{tr('applyNow')}</Text>
               <Ionicons name={isAr ? 'arrow-back' : 'arrow-forward'} size={16} color={COLORS.white} />
             </TouchableOpacity>
@@ -98,12 +98,12 @@ const AccountScreen: React.FC = () => {
         <View style={styles.settingsCard}>
           {/* Addresses */}
           <TouchableOpacity
-            style={[styles.settingsRow, { flexDirection: isAr ? 'row-reverse' : 'row' }]}
+            style={styles.settingsRow}
             onPress={() => navigation.navigate('Addresses')}
           >
-            <View style={[styles.settingsRowLeft, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+            <View style={styles.settingsRowLeft}>
               <Ionicons name="location-outline" size={22} color={COLORS.textSecondary} />
-              <Text style={[styles.settingsLabel, { marginLeft: isAr ? 0 : 12, marginRight: isAr ? 12 : 0 }]}>{tr('addresses')}</Text>
+              <Text style={styles.settingsLabel}>{tr('addresses')}</Text>
             </View>
             <View style={styles.settingsRowRight}>
               <Ionicons name={isAr ? 'chevron-back' : 'chevron-forward'} size={18} color={COLORS.textMuted} />
@@ -113,10 +113,10 @@ const AccountScreen: React.FC = () => {
           <View style={styles.settingsDivider} />
 
           {/* Country */}
-          <TouchableOpacity style={[styles.settingsRow, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
-            <View style={[styles.settingsRowLeft, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+          <TouchableOpacity style={styles.settingsRow}>
+            <View style={styles.settingsRowLeft}>
               <Ionicons name="globe-outline" size={22} color={COLORS.textSecondary} />
-              <Text style={[styles.settingsLabel, { marginLeft: isAr ? 0 : 12, marginRight: isAr ? 12 : 0 }]}>{tr('country')}</Text>
+              <Text style={styles.settingsLabel}>{tr('country')}</Text>
             </View>
             <View style={styles.settingsRowRight}>
               <Text style={styles.settingsValue}>🇪🇬</Text>
@@ -127,10 +127,10 @@ const AccountScreen: React.FC = () => {
           <View style={styles.settingsDivider} />
 
           {/* Language */}
-          <TouchableOpacity style={[styles.settingsRow, { flexDirection: isAr ? 'row-reverse' : 'row' }]} onPress={toggleLanguage}>
-            <View style={[styles.settingsRowLeft, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+          <TouchableOpacity style={styles.settingsRow} onPress={toggleLanguage}>
+            <View style={styles.settingsRowLeft}>
               <MaterialCommunityIcons name="translate" size={22} color={COLORS.textSecondary} />
-              <Text style={[styles.settingsLabel, { marginLeft: isAr ? 0 : 12, marginRight: isAr ? 12 : 0 }]}>{tr('language')}</Text>
+              <Text style={styles.settingsLabel}>{tr('language')}</Text>
             </View>
             <View style={styles.settingsRowRight}>
               <Text style={styles.settingsValue}>{isAr ? 'العربية' : 'English'}</Text>
@@ -141,10 +141,10 @@ const AccountScreen: React.FC = () => {
           <View style={styles.settingsDivider} />
 
           {/* Preferences */}
-          <TouchableOpacity style={[styles.settingsRow, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
-            <View style={[styles.settingsRowLeft, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+          <TouchableOpacity style={styles.settingsRow}>
+            <View style={styles.settingsRowLeft}>
               <Ionicons name="options-outline" size={22} color={COLORS.textSecondary} />
-              <Text style={[styles.settingsLabel, { marginLeft: isAr ? 0 : 12, marginRight: isAr ? 12 : 0 }]}>{tr('preferences')}</Text>
+              <Text style={styles.settingsLabel}>{tr('preferences')}</Text>
             </View>
             <View style={styles.settingsRowRight}>
               <Ionicons name={isAr ? 'chevron-back' : 'chevron-forward'} size={18} color={COLORS.textMuted} />
@@ -317,7 +317,6 @@ const styles = StyleSheet.create({
   settingsLabel: {
     fontSize: SIZES.fontMd,
     color: COLORS.textPrimary,
-    marginLeft: 12,
   },
   settingsValue: {
     fontSize: SIZES.fontMd,

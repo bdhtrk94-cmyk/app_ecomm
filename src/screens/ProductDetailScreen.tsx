@@ -70,7 +70,11 @@ const ProductDetailScreen = ({ route, navigation }: any) => {
     setTimeout(() => setAddedToCart(false), 1800);
   };
 
-  const images = product.images || [product.image];
+  // Mock images array to demonstrate carousel if backend only sends a single image
+  const images = (product.images && product.images.length > 0)
+    ? product.images
+    : [product.image, product.image, product.image].filter(Boolean);
+
   const discount = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : 0;
