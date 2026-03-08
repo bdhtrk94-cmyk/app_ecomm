@@ -210,7 +210,10 @@ const HomeScreen: React.FC = () => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
         >
           {/* Search Bar */}
-          <SearchBar placeholder={isAr ? 'ابحث عن ساعة ذكية...' : 'Search Smart Watch'} />
+          <SearchBar
+            placeholder={isAr ? 'عن ماذا تبحث؟' : 'What are you looking for?'}
+            onPress={() => navigation.navigate('Search')}
+          />
 
           {/* Banner Carousel */}
           {banners.length > 0 && <BannerCarousel banners={banners} height={160} />}

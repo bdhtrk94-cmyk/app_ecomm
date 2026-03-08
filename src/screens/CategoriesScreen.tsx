@@ -11,6 +11,9 @@ import {
   FlatList,
   Platform,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
@@ -21,7 +24,7 @@ import { productsApi } from '../services/api';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useSettingsStore } from '../store/settingsStore';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_GAP = 8;
 const CARD_PADDING = 16;
 const CARD_WIDTH = Math.floor((SCREEN_WIDTH - CARD_PADDING * 2 - CARD_GAP * 2) / 3);
@@ -49,13 +52,27 @@ const mapApiProduct = (p: any) => ({
   slug: p.slug,
   storeName: p.seller?.store_name_en || p.store?.name || 'Safqa Store',
   description: p.description || p.description_en,
-  brand: p.brand?.name || undefined,
+  brand: p.brand?.name || p.brand?.name_en || p.seller?.store_name_en || p.seller?.store_name_ar || null,
   stock: p.quantity_in_stock || undefined,
   specs: p.specifications ? Object.entries(p.specifications).map(([k, v]) => `${k}: ${v}`) : [],
-  deliveryDate: 'Soon', // TODO: compute based on real logic
+  deliveryDate: 'Soon',
   coupon: undefined,
   images: p.images?.map((img: any) => img.url || img) || [],
 });
+
+// ── Rating Stars ──
+const StarRating = ({ rating, size = 14 }: { rating: number; size?: number }) => (
+  <View style={{ flexDirection: 'row', gap: 2 }}>
+    {[1, 2, 3, 4, 5].map(i => (
+      <Ionicons
+        key={i}
+        name={i <= Math.round(rating) ? 'star' : 'star-outline'}
+        size={size}
+        color="#FFC107"
+      />
+    ))}
+  </View>
+);
 
 // ══════════════════════════════
 // ── Product Card Component ──
@@ -109,16 +126,169 @@ const ProductCard = ({ item, onPress }: { item: any; onPress: () => void }) => {
             <Text style={pStyles.couponText}>{item.coupon}</Text>
           </View>
         )}
-        {item.isExpress && (
-          <View style={pStyles.expressRow}>
-            <View style={pStyles.expressBadge}>
-              <Text style={pStyles.expressTextSmall}>express</Text>
-            </View>
-            <Text style={pStyles.deliveryDateText}>{isAr ? 'إكسبريس' : 'express'} <Text style={{ fontWeight: '700' }}>{item.deliveryDate}</Text></Text>
+        {item.rating > 0 && (
+          <View style={pStyles.ratingRow}>
+            <StarRating rating={item.rating} />
+            {item.ratingCount > 0 && (
+              <Text style={pStyles.ratingCount}>({item.ratingCount})</Text>
+            )}
           </View>
         )}
       </View>
     </TouchableOpacity>
+  );
+};
+
+// ══════════════════════════════════════════════════
+// ── Price Filter Modal ──
+// ══════════════════════════════════════════════════
+const PriceModal = ({
+  visible, onClose, onApply, isAr,
+  initMin, initMax,
+}: {
+  visible: boolean; onClose: () => void; isAr: boolean;
+  onApply: (min: string, max: string, sort: string) => void;
+  initMin: string; initMax: string;
+}) => {
+  const [minVal, setMinVal] = useState(initMin);
+  const [maxVal, setMaxVal] = useState(initMax);
+  const [sort, setSort] = useState('');
+
+  useEffect(() => {
+    if (visible) { setMinVal(initMin); setMaxVal(initMax); }
+  }, [visible]);
+
+  const sortOptions = [
+    { key: 'price_asc', labelEn: 'Price: Low to High', labelAr: 'السعر: من الأقل للأعلى' },
+    { key: 'price_desc', labelEn: 'Price: High to Low', labelAr: 'السعر: من الأعلى للأقل' },
+    { key: 'newest', labelEn: 'Newest', labelAr: 'الأحدث' },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={fStyles.backdrop} activeOpacity={1} onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={fStyles.sheetWrapper}>
+        <View style={fStyles.sheet}>
+          <View style={fStyles.handle} />
+          <Text style={fStyles.sheetTitle}>{isAr ? 'السعر والترتيب' : 'Price & Sort'}</Text>
+
+          {/* Price Range */}
+          <Text style={fStyles.sectionLabel}>{isAr ? 'نطاق السعر (EGP)' : 'Price Range (EGP)'}</Text>
+          <View style={fStyles.priceRow}>
+            <View style={fStyles.priceInputWrap}>
+              <Text style={fStyles.priceInputLabel}>{isAr ? 'من' : 'Min'}</Text>
+              <TextInput
+                style={fStyles.priceInput}
+                value={minVal}
+                onChangeText={setMinVal}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor="#CCC"
+              />
+            </View>
+            <View style={fStyles.priceDash} />
+            <View style={fStyles.priceInputWrap}>
+              <Text style={fStyles.priceInputLabel}>{isAr ? 'إلى' : 'Max'}</Text>
+              <TextInput
+                style={fStyles.priceInput}
+                value={maxVal}
+                onChangeText={setMaxVal}
+                keyboardType="numeric"
+                placeholder="99999"
+                placeholderTextColor="#CCC"
+              />
+            </View>
+          </View>
+
+          {/* Quick price ranges */}
+          <View style={fStyles.quickRow}>
+            {[['0', '500'], ['500', '1000'], ['1000', '5000'], ['5000', '']].map(([mn, mx]) => (
+              <TouchableOpacity
+                key={`${mn}-${mx}`}
+                style={[fStyles.quickChip, minVal === mn && maxVal === mx && fStyles.quickChipActive]}
+                onPress={() => { setMinVal(mn); setMaxVal(mx); }}
+              >
+                <Text style={[fStyles.quickChipText, minVal === mn && maxVal === mx && fStyles.quickChipTextActive]}>
+                  {mx ? `${mn}–${mx}` : `${mn}+`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Sort */}
+          <Text style={fStyles.sectionLabel}>{isAr ? 'الترتيب' : 'Sort By'}</Text>
+          {sortOptions.map(opt => (
+            <TouchableOpacity
+              key={opt.key}
+              style={fStyles.radioRow}
+              onPress={() => setSort(sort === opt.key ? '' : opt.key)}
+            >
+              <View style={[fStyles.radio, sort === opt.key && fStyles.radioActive]}>
+                {sort === opt.key && <View style={fStyles.radioDot} />}
+              </View>
+              <Text style={fStyles.radioLabel}>{isAr ? opt.labelAr : opt.labelEn}</Text>
+            </TouchableOpacity>
+          ))}
+
+          {/* Buttons */}
+          <View style={fStyles.btnRow}>
+            <TouchableOpacity style={fStyles.clearBtn} onPress={() => onApply('', '', '')}>
+              <Text style={fStyles.clearBtnText}>{isAr ? 'مسح' : 'Clear'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={fStyles.applyBtn} onPress={() => onApply(minVal, maxVal, sort)}>
+              <Text style={fStyles.applyBtnText}>{isAr ? 'تطبيق' : 'Apply'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+// ── Rating Filter Modal ──
+const RatingModal = ({
+  visible, onClose, onApply, isAr, initRating,
+}: {
+  visible: boolean; onClose: () => void; isAr: boolean;
+  onApply: (rating: number) => void; initRating: number;
+}) => {
+  const [selectedRating, setSelectedRating] = useState(initRating);
+  useEffect(() => { if (visible) setSelectedRating(initRating); }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={fStyles.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={fStyles.sheetWrapper}>
+        <View style={fStyles.sheet}>
+          <View style={fStyles.handle} />
+          <Text style={fStyles.sheetTitle}>{isAr ? 'التقييم' : 'Rating'}</Text>
+          <Text style={fStyles.sectionLabel}>{isAr ? 'الحد الأدنى للتقييم' : 'Minimum Rating'}</Text>
+          {[4, 3, 2, 1].map(r => (
+            <TouchableOpacity
+              key={r}
+              style={fStyles.radioRow}
+              onPress={() => setSelectedRating(selectedRating === r ? 0 : r)}
+            >
+              <View style={[fStyles.radio, selectedRating === r && fStyles.radioActive]}>
+                {selectedRating === r && <View style={fStyles.radioDot} />}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <StarRating rating={r} />
+                <Text style={fStyles.radioLabel}>{isAr ? 'وأعلى' : '& above'}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+          <View style={fStyles.btnRow}>
+            <TouchableOpacity style={fStyles.clearBtn} onPress={() => onApply(0)}>
+              <Text style={fStyles.clearBtnText}>{isAr ? 'مسح' : 'Clear'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={fStyles.applyBtn} onPress={() => onApply(selectedRating)}>
+              <Text style={fStyles.applyBtnText}>{isAr ? 'تطبيق' : 'Apply'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 };
 
@@ -133,18 +303,32 @@ const CategoriesScreen: React.FC = () => {
 
   const [categories, setCategories] = useState<any[]>([]);
   const [loadingCats, setLoadingCats] = useState(true);
-
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-
   const [products, setProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Filter states
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sort, setSort] = useState('');
+  const [minRating, setMinRating] = useState(0);
+  const [selectedBrand, setSelectedBrand] = useState('');
+
+  // Modal visibility
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showBrandModal, setShowBrandModal] = useState(false);
+
+  // Active filter badges
+  const priceActive = minPrice !== '' || maxPrice !== '' || sort !== '';
+  const ratingActive = minRating > 0;
+  const brandActive = selectedBrand !== '';
 
   // Initial load of categories
   useEffect(() => {
     const fetchCats = async () => {
       try {
         const res = await productsApi.categories();
-        // Categories endpoint uses get() not paginate() so it's: { success, data: [...] }
         const raw = res.data;
         const data = raw?.data || [];
         setCategories(Array.isArray(data) ? data : []);
@@ -161,32 +345,64 @@ const CategoriesScreen: React.FC = () => {
   useEffect(() => {
     if (route.params?.categoryId) {
       setSelectedCategory(route.params.categoryId);
-      // Clear the param so it doesn't persist on tab re-focus
       navigation.setParams({ categoryId: undefined });
     }
   }, [route.params?.categoryId]);
 
-  // Fetch products when category changes
+  // Fetch products when category or filters change
+  const fetchProducts = useCallback(async (
+    catId: number,
+    params: { min_price?: string; max_price?: string; sort?: string }
+  ) => {
+    setLoadingProducts(true);
+    try {
+      const query: any = { category_id: catId, page: 1, per_page: 50 };
+      if (params.min_price) query.min_price = params.min_price;
+      if (params.max_price) query.max_price = params.max_price;
+      if (params.sort) query.sort = params.sort;
+
+      const res = await productsApi.list(query);
+      const raw = res.data;
+      const items = raw?.data?.data || raw?.data || [];
+      setProducts(Array.isArray(items) ? items.map(mapApiProduct) : []);
+    } catch (err) {
+      console.warn('Failed to fetch category products', err);
+      setProducts([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedCategory) {
-      const fetchCategoryProducts = async () => {
-        setLoadingProducts(true);
-        try {
-          const res = await productsApi.list({ category_id: selectedCategory, page: 1 });
-          // Products use paginate() so items are at response.data.data.data
-          const raw = res.data;
-          const items = raw?.data?.data || raw?.data || [];
-          setProducts(Array.isArray(items) ? items.map(mapApiProduct) : []);
-        } catch (err) {
-          console.warn('Failed to fetch category products', err);
-          setProducts([]);
-        } finally {
-          setLoadingProducts(false);
-        }
-      };
-      fetchCategoryProducts();
+      fetchProducts(selectedCategory, { min_price: minPrice, max_price: maxPrice, sort });
     }
   }, [selectedCategory]);
+
+  const applyPriceFilter = (mn: string, mx: string, srt: string) => {
+    setMinPrice(mn);
+    setMaxPrice(mx);
+    setSort(srt);
+    setShowPriceModal(false);
+    if (selectedCategory) {
+      fetchProducts(selectedCategory, { min_price: mn, max_price: mx, sort: srt });
+    }
+  };
+
+  const applyRatingFilter = (rating: number) => {
+    setMinRating(rating);
+    setShowRatingModal(false);
+    // Rating filter is client-side (API doesn't have min_rating param)
+  };
+
+  // Client-side filters (rating + brand)
+  const availableBrands = Array.from(
+    new Set(products.map(p => p.brand).filter(Boolean))
+  ) as string[];
+
+  const displayedProducts = products
+    .filter(p => minRating === 0 || p.rating >= minRating)
+    .filter(p => !brandActive || p.brand === selectedBrand);
 
   const getCategoryName = () => {
     const cat = categories.find(c => c.id === selectedCategory);
@@ -204,32 +420,63 @@ const CategoriesScreen: React.FC = () => {
   if (selectedCategory) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-        <MainHeader />
-        <View style={styles.filterRow}>
-          <TouchableOpacity style={styles.expressFilterTag}>
-            <View style={styles.filterCheckbox} />
-            <Text style={styles.expressFilterText}>{isAr ? 'إكسبريس' : 'express'}</Text>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+
+        {/* Simple back header */}
+        <View style={[styles.simpleHeader, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
+          <TouchableOpacity
+            onPress={() => setSelectedCategory(null)}
+            style={[styles.backBtn, { marginRight: isAr ? 0 : 12, marginLeft: isAr ? 12 : 0 }]}
+          >
+            <Ionicons name={isAr ? 'arrow-forward' : 'arrow-back'} size={24} color="#1A1A1A" />
           </TouchableOpacity>
+          <Text style={styles.simpleHeaderTitle} numberOfLines={1}>{getCategoryName()}</Text>
+        </View>
+
+        {/* Filter Row */}
+        <View style={styles.filterRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            <TouchableOpacity style={styles.filterPill}>
-              <Text style={styles.filterPillText}>{isAr ? 'السعر' : 'Price'}</Text>
-              <Ionicons name="chevron-down" size={14} color="#666" />
+            {/* Price / Sort */}
+            <TouchableOpacity
+              style={[styles.filterPill, priceActive && styles.filterPillActive]}
+              onPress={() => setShowPriceModal(true)}
+            >
+              <Text style={[styles.filterPillText, priceActive && styles.filterPillTextActive]}>
+                {isAr ? 'السعر' : 'Price'}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={priceActive ? COLORS.primary : '#666'} />
+              {priceActive && <View style={styles.activeDot} />}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.filterPill}>
-              <Text style={styles.filterPillText}>{isAr ? 'الماركة' : 'Brand'}</Text>
-              <Ionicons name="chevron-down" size={14} color="#666" />
+
+            {/* Brand */}
+            <TouchableOpacity
+              style={[styles.filterPill, brandActive && styles.filterPillActive]}
+              onPress={() => setShowBrandModal(true)}
+            >
+              <Text style={[styles.filterPillText, brandActive && styles.filterPillTextActive]}>
+                {brandActive ? selectedBrand : (isAr ? 'الماركة' : 'Brand')}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={brandActive ? COLORS.primary : '#666'} />
+              {brandActive && <View style={styles.activeDot} />}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.filterPill}>
-              <Text style={styles.filterPillText}>{isAr ? 'التقييم' : 'Rating'}</Text>
-              <Ionicons name="chevron-down" size={14} color="#666" />
+
+            {/* Rating */}
+            <TouchableOpacity
+              style={[styles.filterPill, ratingActive && styles.filterPillActive]}
+              onPress={() => setShowRatingModal(true)}
+            >
+              <Text style={[styles.filterPillText, ratingActive && styles.filterPillTextActive]}>
+                {ratingActive ? `${minRating}★+` : (isAr ? 'التقييم' : 'Rating')}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={ratingActive ? COLORS.primary : '#666'} />
+              {ratingActive && <View style={styles.activeDot} />}
             </TouchableOpacity>
           </ScrollView>
         </View>
+
         <View style={styles.categoryLabel}>
-          <Text style={styles.categoryLabelText}>{getCategoryName()}</Text>
           <Text style={styles.resultCount}>
-            {loadingProducts ? '...' : products.length} {isAr ? 'نتيجة' : 'results'}
+            {loadingProducts ? '...' : displayedProducts.length} {isAr ? 'نتيجة' : 'results'}
           </Text>
         </View>
 
@@ -237,14 +484,14 @@ const CategoriesScreen: React.FC = () => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
-        ) : products.length === 0 ? (
+        ) : displayedProducts.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="cube-outline" size={48} color="#CCC" />
             <Text style={styles.emptyText}>{isAr ? 'لا توجد منتجات في هذه الفئة' : 'No products in this category'}</Text>
           </View>
         ) : (
           <FlatList
-            data={products}
+            data={displayedProducts}
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => <ProductCard item={item} onPress={() => handleProductPress(item)} />}
             contentContainerStyle={styles.productList}
@@ -254,15 +501,57 @@ const CategoriesScreen: React.FC = () => {
           />
         )}
 
-        <View style={styles.floatingBar}>
-          <TouchableOpacity style={styles.floatingButton}>
-            <Text style={styles.floatingText}>{isAr ? 'ترتيب' : 'Sort'}</Text>
-            <Ionicons name="swap-vertical" size={16} color={COLORS.white} />
-            <View style={styles.floatingDivider} />
-            <Text style={styles.floatingText}>{isAr ? 'تصفية' : 'Filter'}</Text>
-            <Ionicons name="filter" size={16} color={COLORS.white} />
-          </TouchableOpacity>
-        </View>
+
+        <PriceModal
+          visible={showPriceModal}
+          onClose={() => setShowPriceModal(false)}
+          onApply={applyPriceFilter}
+          isAr={isAr}
+          initMin={minPrice}
+          initMax={maxPrice}
+        />
+        <RatingModal
+          visible={showRatingModal}
+          onClose={() => setShowRatingModal(false)}
+          onApply={applyRatingFilter}
+          isAr={isAr}
+          initRating={minRating}
+        />
+        <Modal visible={showBrandModal} transparent animationType="slide" onRequestClose={() => setShowBrandModal(false)}>
+          <TouchableOpacity style={fStyles.backdrop} activeOpacity={1} onPress={() => setShowBrandModal(false)} />
+          <View style={fStyles.sheetWrapper}>
+            <View style={fStyles.sheet}>
+              <View style={fStyles.handle} />
+              <Text style={fStyles.sheetTitle}>{isAr ? 'الماركة' : 'Brand'}</Text>
+              {availableBrands.length === 0 ? (
+                <Text style={{ color: '#999', textAlign: 'center', paddingVertical: 20 }}>
+                  {isAr ? 'لا توجد ماركات في هذه الفئة' : 'No brands in this category'}
+                </Text>
+              ) : (
+                availableBrands.map(brand => (
+                  <TouchableOpacity
+                    key={brand}
+                    style={fStyles.radioRow}
+                    onPress={() => setSelectedBrand(selectedBrand === brand ? '' : brand)}
+                  >
+                    <View style={[fStyles.radio, selectedBrand === brand && fStyles.radioActive]}>
+                      {selectedBrand === brand && <View style={fStyles.radioDot} />}
+                    </View>
+                    <Text style={fStyles.radioLabel}>{brand}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+              <View style={fStyles.btnRow}>
+                <TouchableOpacity style={fStyles.clearBtn} onPress={() => { setSelectedBrand(''); setShowBrandModal(false); }}>
+                  <Text style={fStyles.clearBtnText}>{isAr ? 'مسح' : 'Clear'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={fStyles.applyBtn} onPress={() => setShowBrandModal(false)}>
+                  <Text style={fStyles.applyBtnText}>{isAr ? 'تطبيق' : 'Apply'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -273,7 +562,10 @@ const CategoriesScreen: React.FC = () => {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
       <MainHeader />
       <View style={styles.searchWrap}>
-        <SearchBar placeholder={isAr ? 'عن ماذا تبحث؟' : 'What are you looking for?'} />
+        <SearchBar
+          placeholder={isAr ? 'عن ماذا تبحث؟' : 'What are you looking for?'}
+          onPress={() => navigation.navigate('Search')}
+        />
       </View>
       <View style={styles.titleContainer}>
         <Text style={styles.title}>{isAr ? 'الفئات' : 'Categories'}</Text>
@@ -313,6 +605,18 @@ const CategoriesScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.white },
+  simpleHeader: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  backBtn: { marginRight: 12 },
+  simpleHeaderTitle: { fontSize: 20, fontWeight: '800', color: '#1A1A1A', flex: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 16, color: '#999' },
@@ -327,11 +631,11 @@ const styles = StyleSheet.create({
   categoryImage: { width: '70%', height: '70%' },
   categoryName: { fontSize: 13, fontWeight: '600', color: '#333', marginTop: 8, textAlign: 'center', paddingHorizontal: 4 },
   filterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F0F0F0', backgroundColor: '#FFF' },
-  expressFilterTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF5E5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, marginRight: 12, borderWidth: 1, borderColor: '#FFE0B2' },
-  filterCheckbox: { width: 14, height: 14, borderRadius: 4, borderWidth: 1.5, borderColor: '#F57C00', marginRight: 6 },
-  expressFilterText: { fontSize: 12, fontWeight: '800', color: '#F57C00', fontStyle: 'italic' },
   filterPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E8E8E8' },
+  filterPillActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '12' },
   filterPillText: { fontSize: 13, fontWeight: '600', color: '#444', marginRight: 4 },
+  filterPillTextActive: { color: COLORS.primary },
+  activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary, marginLeft: 2 },
   categoryLabel: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   categoryLabelText: { fontSize: 20, fontWeight: '800', color: '#1A1A1A' },
   resultCount: { fontSize: 13, color: '#888', fontWeight: '500', marginBottom: 2 },
@@ -341,6 +645,36 @@ const styles = StyleSheet.create({
   floatingButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A1A', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 30, gap: 8 },
   floatingText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
   floatingDivider: { width: 1, height: 16, backgroundColor: '#444', marginHorizontal: 8 },
+});
+
+// ── Filter Modal Styles ──
+const fStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheetWrapper: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: Platform.OS === 'ios' ? 34 : 20 },
+  sheet: { paddingHorizontal: 20, paddingTop: 12 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 16 },
+  sheetTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', marginBottom: 20 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#888', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 12, marginTop: 4 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  priceInputWrap: { flex: 1 },
+  priceInputLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
+  priceInput: { borderWidth: 1.5, borderColor: '#E8E8E8', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
+  priceDash: { width: 16, height: 2, backgroundColor: '#DDD', marginTop: 14 },
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  quickChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: '#E0E0E0', backgroundColor: '#F8F8F8' },
+  quickChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary + '15' },
+  quickChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  quickChipTextActive: { color: COLORS.primary },
+  radioRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#DDD', alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: COLORS.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },
+  radioLabel: { fontSize: 15, color: '#333', fontWeight: '500' },
+  btnRow: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  clearBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center' },
+  clearBtnText: { fontSize: 15, fontWeight: '700', color: '#666' },
+  applyBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
+  applyBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
 });
 
 const pStyles = StyleSheet.create({
@@ -362,10 +696,8 @@ const pStyles = StyleSheet.create({
   freeDeliveryText: { fontSize: 12, color: '#00796B', fontWeight: '600' },
   couponBadge: { alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FFC107', borderStyle: 'dashed', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#FFFDE7', marginTop: 6 },
   couponText: { fontSize: 11, fontWeight: '700', color: '#F57F17' },
-  expressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },
-  expressBadge: { backgroundColor: COLORS.primary, borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2 },
-  expressTextSmall: { fontSize: 10, fontWeight: '800', color: '#FFF', fontStyle: 'italic' },
-  deliveryDateText: { fontSize: 11, color: '#666' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
+  ratingCount: { fontSize: 11, color: '#888' },
 });
 
 export default CategoriesScreen;

@@ -19,9 +19,14 @@ const api = axios.create({
 
 // Keep a reference to the token in memory to avoid async race conditions on Web
 let currentToken: string | null = null;
+let on401: (() => void) | null = null;
 
 export const setApiToken = (token: string | null) => {
   currentToken = token;
+};
+
+export const setLogoutHandler = (handler: () => void) => {
+  on401 = handler;
 };
 
 // Attach token to every request
@@ -72,6 +77,9 @@ api.interceptors.response.use(
       currentToken = null;
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+
+      // Trigger global logout in store if registered
+      if (on401) on401();
     }
     return Promise.reject(error);
   }
@@ -92,7 +100,7 @@ export const authApi = {
 
 // ── Products (Public) ─────────────────────────────
 export const productsApi = {
-  list: (params?: { category_id?: number; search?: string; page?: number }) =>
+  list: (params?: { category_id?: number; search?: string; page?: number; per_page?: number; min_price?: string; max_price?: string; sort?: string }) =>
     api.get('/products', { params }),
 
   show: (slug: string) => api.get(`/products/${slug}`),

@@ -12,14 +12,18 @@ const SearchBar: React.FC<SearchBarProps> = ({
   onPress,
 }) => {
   return (
-    <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.container}>
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={onPress}
+      style={styles.container}
+    >
       <View style={styles.searchBox}>
         <Ionicons name="search" size={18} color="#888" style={styles.icon} />
         <Text style={styles.placeholderText} numberOfLines={1}>{placeholder}</Text>
         <View style={styles.divider} />
-        <TouchableOpacity style={styles.cameraBtn}>
+        <View style={styles.cameraBtn}>
           <Ionicons name="camera-outline" size={20} color="#666" />
-        </TouchableOpacity>
+        </View>
       </View>
     </TouchableOpacity>
   );

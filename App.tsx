@@ -23,6 +23,7 @@ import OrdersScreen from './src/screens/OrdersScreen';
 import AddressesScreen from './src/screens/AddressesScreen';
 import WishlistScreen from './src/screens/WishlistScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
+import SearchScreen from './src/screens/SearchScreen';
 import { useCartStore } from './src/store/cartStore';
 
 const PERSISTENCE_KEY = 'SAFQA_NAV_STATE';
@@ -224,6 +225,11 @@ export default function App() {
                 name="Notifications"
                 component={NotificationsScreen}
                 options={{ animation: isAr ? 'slide_from_left' : 'slide_from_right' }}
+              />
+              <Stack.Screen
+                name="Search"
+                component={SearchScreen}
+                options={{ animation: 'fade' }}
               />
             </Stack.Navigator>
           ) : (

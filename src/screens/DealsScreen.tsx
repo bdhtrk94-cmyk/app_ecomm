@@ -9,6 +9,7 @@ import {
   StatusBar,
   Image,
   Platform,
+  Modal,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS } from '../constants/theme';
@@ -35,7 +36,7 @@ const mapApiBanner = (b: any) => ({
 
 const DealsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const [expressEnabled, setExpressEnabled] = useState(false);
+
   const { language } = useSettingsStore();
   const tr = t(language);
   const isAr = language === 'ar';
@@ -44,6 +45,15 @@ const DealsScreen: React.FC = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter states
+  const [dealsSort, setDealsSort] = useState(''); // 'most_discount' | 'newest' | ''
+  const [selectedBrand, setSelectedBrand] = useState(''); // brand name
+  const [showDealsModal, setShowDealsModal] = useState(false);
+  const [showBrandModal, setShowBrandModal] = useState(false);
+
+  const dealsActive = dealsSort !== '';
+  const brandActive = selectedBrand !== '';
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -76,7 +86,7 @@ const DealsScreen: React.FC = () => {
           const raw = dealsRes.value.data;
           const items = raw?.data?.data || raw?.data || [];
           if (Array.isArray(items)) {
-            setDeals(items.slice(0, 8).map((p: any, i: number) => ({
+            setDeals(items.slice(0, 20).map((p: any, i: number) => ({
               id: p.id,
               title: (p.name_en || p.name || 'Deal').split(' ').slice(0, 2).join(' '),
               titleAr: (p.name_ar || p.name_en || p.name || 'عرض').split(' ').slice(0, 2).join(' '),
@@ -86,6 +96,8 @@ const DealsScreen: React.FC = () => {
               discount: p.discount_percentage
                 ? (isAr ? `خصم ${p.discount_percentage}%` : `Up to ${p.discount_percentage}% off`)
                 : (isAr ? 'عرض خاص' : 'Special Offer'),
+              discountNum: parseFloat(p.discount_percentage || '0'),
+              brand: p.brand?.name || p.brand?.name_en || p.seller?.store_name_en || null,
             })));
           }
         }
@@ -101,8 +113,95 @@ const DealsScreen: React.FC = () => {
   };
 
   const handleMegaDealPress = (deal: any) => {
-    // Navigate to categories since deals doesn't have a direct product mapping in this simplified mock
     navigation.navigate('Categories', { categoryId: undefined });
+  };
+
+  // Derived: apply client-side filters/sort to deals
+  const displayedDeals = [...deals]
+    .filter(d => !brandActive || (d.brand || '').toLowerCase() === selectedBrand.toLowerCase())
+    .sort((a, b) => {
+      if (dealsSort === 'most_discount') return (b.discountNum || 0) - (a.discountNum || 0);
+      if (dealsSort === 'newest') return b.id - a.id;
+      return 0;
+    });
+
+  // Collect unique brands from deals for the brand picker
+  const availableBrands = Array.from(new Set(deals.map(d => d.brand).filter(Boolean))) as string[];
+
+  // ── Deals Sort Modal ──
+  const DealsModal = () => {
+    const [localSort, setLocalSort] = useState(dealsSort);
+    const sortOpts = [
+      { key: 'most_discount', labelEn: 'Most Discount', labelAr: 'أعلى خصم' },
+      { key: 'newest', labelEn: 'Newest', labelAr: 'الأحدث' },
+    ];
+    return (
+      <Modal visible={showDealsModal} transparent animationType="slide" onRequestClose={() => setShowDealsModal(false)}>
+        <TouchableOpacity style={mStyles.backdrop} activeOpacity={1} onPress={() => setShowDealsModal(false)} />
+        <View style={mStyles.sheet}>
+          <View style={mStyles.handle} />
+          <Text style={mStyles.title}>{isAr ? 'ترتيب العروض' : 'Sort Deals'}</Text>
+          {sortOpts.map(opt => (
+            <TouchableOpacity
+              key={opt.key}
+              style={mStyles.radioRow}
+              onPress={() => setLocalSort(localSort === opt.key ? '' : opt.key)}
+            >
+              <View style={[mStyles.radio, localSort === opt.key && mStyles.radioActive]}>
+                {localSort === opt.key && <View style={mStyles.radioDot} />}
+              </View>
+              <Text style={mStyles.radioLabel}>{isAr ? opt.labelAr : opt.labelEn}</Text>
+            </TouchableOpacity>
+          ))}
+          <View style={mStyles.btnRow}>
+            <TouchableOpacity style={mStyles.clearBtn} onPress={() => { setLocalSort(''); setDealsSort(''); setShowDealsModal(false); }}>
+              <Text style={mStyles.clearBtnText}>{isAr ? 'مسح' : 'Clear'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={mStyles.applyBtn} onPress={() => { setDealsSort(localSort); setShowDealsModal(false); }}>
+              <Text style={mStyles.applyBtnText}>{isAr ? 'تطبيق' : 'Apply'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  // ── Brand Filter Modal ──
+  const BrandModal = () => {
+    const [localBrand, setLocalBrand] = useState(selectedBrand);
+    return (
+      <Modal visible={showBrandModal} transparent animationType="slide" onRequestClose={() => setShowBrandModal(false)}>
+        <TouchableOpacity style={mStyles.backdrop} activeOpacity={1} onPress={() => setShowBrandModal(false)} />
+        <View style={mStyles.sheet}>
+          <View style={mStyles.handle} />
+          <Text style={mStyles.title}>{isAr ? 'الماركة' : 'Brand'}</Text>
+          {availableBrands.length === 0 ? (
+            <Text style={mStyles.emptyText}>{isAr ? 'لا توجد ماركات متاحة' : 'No brands available'}</Text>
+          ) : (
+            availableBrands.map(brand => (
+              <TouchableOpacity
+                key={brand}
+                style={mStyles.radioRow}
+                onPress={() => setLocalBrand(localBrand === brand ? '' : brand)}
+              >
+                <View style={[mStyles.radio, localBrand === brand && mStyles.radioActive]}>
+                  {localBrand === brand && <View style={mStyles.radioDot} />}
+                </View>
+                <Text style={mStyles.radioLabel}>{brand}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+          <View style={mStyles.btnRow}>
+            <TouchableOpacity style={mStyles.clearBtn} onPress={() => { setLocalBrand(''); setSelectedBrand(''); setShowBrandModal(false); }}>
+              <Text style={mStyles.clearBtnText}>{isAr ? 'مسح' : 'Clear'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={mStyles.applyBtn} onPress={() => { setSelectedBrand(localBrand); setShowBrandModal(false); }}>
+              <Text style={mStyles.applyBtnText}>{isAr ? 'تطبيق' : 'Apply'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
   return (
@@ -112,33 +211,36 @@ const DealsScreen: React.FC = () => {
       <MainHeader />
 
       <View style={styles.searchWrap}>
-        <SearchBar placeholder={isAr ? 'بحث...' : 'Search'} />
+        <SearchBar
+          placeholder={isAr ? 'بحث...' : 'Search'}
+          onPress={() => navigation.navigate('Search')}
+        />
       </View>
 
       {/* Filter Row */}
       <View style={styles.filterRow}>
         <TouchableOpacity
-          style={[styles.expressTag, expressEnabled && styles.expressTagActive]}
-          onPress={() => setExpressEnabled(!expressEnabled)}
+          style={[styles.filterButton, dealsActive && styles.filterButtonActive]}
+          onPress={() => setShowDealsModal(true)}
         >
-          <View style={[styles.checkbox, expressEnabled && styles.checkboxActive]}>
-            {expressEnabled && <Ionicons name="checkmark" size={12} color={COLORS.white} />}
-          </View>
-          <Text style={[styles.expressText, expressEnabled && styles.expressTextActive]}>
-            {isAr ? 'إكسبريس' : 'express'}
+          <Ionicons name="settings-outline" size={16} color={dealsActive ? COLORS.primary : COLORS.textSecondary} />
+          <Text style={[styles.filterButtonText, dealsActive && styles.filterButtonTextActive]}>
+            {isAr ? 'عروض' : 'Deals'}
           </Text>
+          <Ionicons name="chevron-down" size={14} color={dealsActive ? COLORS.primary : COLORS.textSecondary} />
+          {dealsActive && <View style={styles.activeDot} />}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="settings-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.filterButtonText}>{isAr ? 'عروض' : 'Deals'}</Text>
-          <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.filterButton}>
-          <MaterialCommunityIcons name="tag-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.filterButtonText}>{isAr ? 'الماركة' : 'Brand'}</Text>
-          <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
+        <TouchableOpacity
+          style={[styles.filterButton, brandActive && styles.filterButtonActive]}
+          onPress={() => setShowBrandModal(true)}
+        >
+          <MaterialCommunityIcons name="tag-outline" size={16} color={brandActive ? COLORS.primary : COLORS.textSecondary} />
+          <Text style={[styles.filterButtonText, brandActive && styles.filterButtonTextActive]}>
+            {brandActive ? selectedBrand : (isAr ? 'الماركة' : 'Brand')}
+          </Text>
+          <Ionicons name="chevron-down" size={14} color={brandActive ? COLORS.primary : COLORS.textSecondary} />
+          {brandActive && <View style={styles.activeDot} />}
         </TouchableOpacity>
       </View>
 
@@ -198,7 +300,7 @@ const DealsScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.megaDealsScroll}
             >
-              {deals.map((deal) => (
+              {displayedDeals.map((deal) => (
                 <TouchableOpacity key={deal.id} activeOpacity={0.9} style={styles.megaDealCardOuter} onPress={() => handleMegaDealPress(deal)}>
                   <View style={styles.megaDealCard}>
                     <View style={[styles.megaDealImageArea, { backgroundColor: deal.bgColor }]}>
@@ -220,19 +322,9 @@ const DealsScreen: React.FC = () => {
         <View style={{ height: 20 }} />
       </ScrollView>
 
-      {/* Floating Sort / Filter Button */}
-      <View style={styles.floatingBar}>
-        <TouchableOpacity style={styles.floatingButton}>
-          <Text style={styles.floatingText}>Sort</Text>
-          <Ionicons name="swap-vertical" size={16} color={COLORS.white} />
-          <View style={styles.floatingDivider} />
-          <Text style={styles.floatingText}>Filter</Text>
-          <Ionicons name="filter" size={16} color={COLORS.white} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.shareButton}>
-          <Ionicons name="share-social-outline" size={20} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-      </View>
+
+      <DealsModal />
+      <BrandModal />
     </View>
   );
 };
@@ -298,10 +390,24 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 4,
   },
+  filterButtonActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '12',
+  },
   filterButtonText: {
     fontSize: SIZES.fontSm,
     color: COLORS.textSecondary,
     ...FONTS.medium,
+  },
+  filterButtonTextActive: {
+    color: COLORS.primary,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+    marginLeft: 2,
   },
   scrollView: {
     flex: 1,
@@ -443,5 +549,30 @@ const styles = StyleSheet.create({
     ...SHADOWS.medium,
   },
 });
+const mStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+  },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 16 },
+  title: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', marginBottom: 20 },
+  emptyText: { fontSize: 14, color: '#999', textAlign: 'center', paddingVertical: 20 },
+  radioRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#DDD', alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: COLORS.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.primary },
+  radioLabel: { fontSize: 15, color: '#333', fontWeight: '500' },
+  btnRow: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  clearBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center' },
+  clearBtnText: { fontSize: 15, fontWeight: '700', color: '#666' },
+  applyBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
+  applyBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+});
 
 export default DealsScreen;
+
