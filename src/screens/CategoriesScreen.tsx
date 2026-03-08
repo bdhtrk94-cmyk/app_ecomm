@@ -15,6 +15,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import SearchBar from '../components/SearchBar';
+import MainHeader from '../components/MainHeader';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { productsApi } from '../services/api';
 import { useWishlistStore } from '../store/wishlistStore';
@@ -204,16 +205,7 @@ const CategoriesScreen: React.FC = () => {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-        <View style={styles.header}>
-          <View style={[styles.headerInnerProducts, { flexDirection: isAr ? 'row-reverse' : 'row' }]}>
-            <TouchableOpacity onPress={() => setSelectedCategory(null)} style={styles.backBtn}>
-              <Ionicons name={isAr ? 'chevron-forward' : 'chevron-back'} size={24} color="#FFF" />
-            </TouchableOpacity>
-            <View style={styles.headerSearchWrap}>
-              <SearchBar placeholder={isAr ? 'بحث...' : 'Search'} />
-            </View>
-          </View>
-        </View>
+        <MainHeader />
         <View style={styles.filterRow}>
           <TouchableOpacity style={styles.expressFilterTag}>
             <View style={styles.filterCheckbox} />
@@ -279,12 +271,7 @@ const CategoriesScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-      <View style={styles.header}>
-        <View style={styles.headerInner}>
-          <Ionicons name="bag-handle" size={22} color="#FFF" />
-          <Text style={styles.brandNameHeader}>Safqa</Text>
-        </View>
-      </View>
+      <MainHeader />
       <View style={styles.searchWrap}>
         <SearchBar placeholder={isAr ? 'عن ماذا تبحث؟' : 'What are you looking for?'} />
       </View>
@@ -329,12 +316,6 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 16, color: '#999' },
-  header: { backgroundColor: COLORS.primary },
-  headerInner: { paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight || 0) + 12, paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center' },
-  headerInnerProducts: { paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight || 0) + 12, paddingHorizontal: 8, paddingBottom: 8, flexDirection: 'row', alignItems: 'center' },
-  backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  headerSearchWrap: { flex: 1, marginLeft: 4 },
-  brandNameHeader: { fontSize: 26, fontWeight: '900', color: '#FFF', marginLeft: 8, letterSpacing: 1.5 },
   searchWrap: { backgroundColor: COLORS.white, paddingBottom: 4 },
   titleContainer: { paddingHorizontal: 16, paddingBottom: 10, paddingTop: 4 },
   title: { fontSize: 22, fontWeight: '800', color: '#1A1A1A' },

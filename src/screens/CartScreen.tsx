@@ -18,6 +18,7 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { checkoutApi } from '../services/api';
+import MainHeader from '../components/MainHeader';
 import { t } from '../constants/i18n';
 
 const CartScreen: React.FC = () => {
@@ -64,12 +65,8 @@ const CartScreen: React.FC = () => {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-        <View style={styles.header}>
-          <View style={styles.headerInner}>
-            <Ionicons name="bag-handle" size={22} color="#FFF" />
-            <Text style={styles.brandName}>Safqa</Text>
-          </View>
-        </View>
+
+        <MainHeader />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
           {/* Empty State */}
@@ -102,12 +99,7 @@ const CartScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      <View style={styles.header}>
-        <View style={styles.headerInner}>
-          <Ionicons name="bag-handle" size={22} color="#FFF" />
-          <Text style={styles.brandName}>Safqa</Text>
-        </View>
-      </View>
+      <MainHeader />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
@@ -224,9 +216,6 @@ const CartScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { backgroundColor: COLORS.primary },
-  headerInner: { paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight || 0) + 12, paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center' },
-  brandName: { fontSize: 26, fontWeight: '900', color: '#FFF', marginLeft: 8, letterSpacing: 1.5 },
   scrollView: { flex: 1 },
 
   // ── Empty State ──

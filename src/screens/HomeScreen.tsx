@@ -18,6 +18,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS } from '../constants/theme';
 import SearchBar from '../components/SearchBar';
+import MainHeader from '../components/MainHeader';
 import BannerCarousel from '../components/BannerCarousel';
 import CategoryIcon from '../components/CategoryIcon';
 import SectionHeader from '../components/SectionHeader';
@@ -194,24 +195,7 @@ const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={[styles.headerInner, { paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight || 0) + 12 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            <Ionicons name="bag-handle" size={22} color="#FFF" />
-            <Text style={styles.brandName}>Safqa</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-            <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.navigate('Wishlist')}>
-              <Ionicons name="heart-outline" size={24} color="#FFF" />
-            </TouchableOpacity>
-            <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => navigation.navigate('Notifications')}>
-              <Ionicons name="notifications-outline" size={24} color="#FFF" />
-              <View style={styles.notificationBadge} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+      <MainHeader />
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -285,14 +269,6 @@ const HomeScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { backgroundColor: COLORS.primary },
-  headerInner: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  brandName: { fontSize: 26, fontWeight: '900', color: '#FFF', marginLeft: 8, letterSpacing: 1.5 },
   scrollView: { flex: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontSize: 14, color: '#AAA' },

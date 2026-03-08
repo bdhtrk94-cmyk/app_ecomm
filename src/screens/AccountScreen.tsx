@@ -14,6 +14,7 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useNavigation } from '@react-navigation/native';
 import { t } from '../constants/i18n';
+import MainHeader from '../components/MainHeader';
 
 const AccountScreen: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -27,13 +28,7 @@ const AccountScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerInner}>
-          <Ionicons name="bag-handle" size={22} color="#FFF" />
-          <Text style={styles.brandName}>{tr('appName')}</Text>
-        </View>
-      </View>
+      <MainHeader />
 
       <ScrollView
         style={styles.scrollView}
@@ -192,21 +187,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scrollView: { flex: 1 },
   scrollContent: { paddingTop: 16 },
-  header: { backgroundColor: COLORS.primary },
-  headerInner: {
-    paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight || 0) + 12,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  brandName: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#FFF',
-    marginLeft: 8,
-    letterSpacing: 1.5,
-  },
 
   // Greeting Card
   greetingCard: {
